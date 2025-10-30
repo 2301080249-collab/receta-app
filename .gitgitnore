@@ -1,0 +1,7 @@
+backend/ .env
+frontend/recetario/ .env
+build/
+.dart_tool/
+.flutter-plugins
+.package
+pubspec.lock
