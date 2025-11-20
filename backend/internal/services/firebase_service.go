@@ -18,7 +18,7 @@ func NewFirebaseService() (*FirebaseService, error) {
 	ctx := context.Background()
 
 	// Inicializar Firebase Admin SDK
-	opt := option.WithCredentialsFile("firebase-adminsdk.json")
+	opt := option.WithCredentialsFile("/etc/secrets/firebase-adminsdk.json")
 
 	// ✅ CAMBIO: Especificar el project_id explícitamente
 	config := &firebase.Config{
