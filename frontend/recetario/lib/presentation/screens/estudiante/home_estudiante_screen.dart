@@ -65,16 +65,16 @@ class _HomeEstudianteScreenState extends State<HomeEstudianteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ CORREGIDO: CustomAppHeader como appBar en lugar de dentro de Column
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: Column(
-        children: [
-          if (widget.showHeader)
-            const CustomAppHeader(selectedMenu: 'cursos'),
-          
-          Expanded(child: _buildBody()),
-        ],
-      ),
+      appBar: widget.showHeader 
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(kToolbarHeight),
+              child: const CustomAppHeader(selectedMenu: 'cursos'),
+            )
+          : null,
+      body: _buildBody(),
     );
   }
 

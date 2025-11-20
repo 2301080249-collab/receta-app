@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../presentation/widgets/protected_route.dart';
 
 // ==================== IMPORTS DE SCREENS ====================
 // Auth
@@ -8,13 +10,13 @@ import '../presentation/screens/auth/change_password_screen.dart';
 // Admin
 import '../presentation/screens/admin/admin_layout.dart';
 import '../presentation/screens/admin/matriculas_screen.dart';
-import '../presentation/screens/admin/crear_usuario_screen.dart'; // ✅ AGREGADO
+import '../presentation/screens/admin/crear_usuario_screen.dart';
 
-// Layouts - ✅ NUEVO: Imports de los layouts principales
+// Layouts
 import '../presentation/layouts/estudiante_main_layout.dart';
 import '../presentation/layouts/docente_main_layout.dart';
 
-// Portafolio - ✅ NUEVO
+// Portafolio
 import '../presentation/screens/shared/portafolio_screen.dart';
 import '../presentation/screens/shared/detalle_receta_screen.dart';
 import '../presentation/screens/shared/agregar_receta_screen.dart';
@@ -28,7 +30,7 @@ class AppRoutes {
   // ==================== RUTAS DE ADMIN ====================
   static const String adminDashboard = '/admin/dashboard';
   static const String matriculas = '/admin/matriculas';
-  static const String crearUsuario = '/admin/crear-usuario'; // ✅ AGREGADO
+  static const String crearUsuario = '/admin/crear-usuario';
 
   // ==================== RUTAS DE ESTUDIANTE ====================
   static const String estudianteHome = '/estudiante/home';
@@ -39,32 +41,85 @@ class AppRoutes {
   // ==================== RUTAS DE PORTAFOLIO ====================
   static const String portafolio = '/portafolio';
   static const String agregarReceta = '/portafolio/agregar';
-  // Nota: detalleReceta usa navegación programática con parámetros
 
   // ==================== MAPA DE RUTAS ====================
   static Map<String, WidgetBuilder> get routes {
     return {
-      // Auth
+      // ==================== AUTH (SIN PROTECCIÓN) ====================
       login: (context) => const LoginScreen(),
 
-      // Admin - Una sola ruta para todo el módulo
-      adminDashboard: (context) => const AdminLayout(),
-      matriculas: (context) => const MatriculasScreen(),
-      crearUsuario: (context) => const CrearUsuarioScreen(), // ✅ AGREGADO
+      // ==================== ADMIN (PROTEGIDO - SOLO ADMINISTRADORES) ====================
+      adminDashboard: (context) => ProtectedRoute(
+        allowedRoles: const ['administrador'],
+        child: const AdminLayout(),
+      ),
       
-      // ✅ MODIFICADO: Estudiante - Ahora usa el layout principal que mantiene estado
-      estudianteHome: (context) => const EstudianteMainLayout(
-        initialIndex: 1, // Inicia en la tab de Cursos (index 1)
+      matriculas: (context) => ProtectedRoute(
+        allowedRoles: const ['administrador'],
+        child: const MatriculasScreen(),
+      ),
+      
+      crearUsuario: (context) => ProtectedRoute(
+        allowedRoles: const ['administrador'],
+        child: const CrearUsuarioScreen(),
       ),
 
-      // ✅ MODIFICADO: Docente - Ahora usa el layout principal que mantiene estado
-      docenteHome: (context) => const DocenteMainLayout(
-        initialIndex: 1, // Inicia en la tab de Cursos (index 1)
-      ),
+      // ==================== ESTUDIANTE (PROTEGIDO - SOLO ESTUDIANTES) ====================
+      estudianteHome: (context) {
+        // ✅ NUEVO: Obtener el parámetro 'tab' de la URL (solo en web)
+        int initialIndex = 1; // Default: tab de Cursos
+        
+        if (kIsWeb) {
+          try {
+            final uri = Uri.base;
+            final tabParam = uri.queryParameters['tab'];
+            initialIndex = int.tryParse(tabParam ?? '1') ?? 1;
+          } catch (e) {
+            // Si hay error, usar el índice por defecto
+            initialIndex = 1;
+          }
+        }
 
-      // Portafolio - ✅ NUEVO
-      portafolio: (context) => const PortafolioScreen(),
-      agregarReceta: (context) => const AgregarRecetaScreen(),
+        return ProtectedRoute(
+          allowedRoles: const ['estudiante'],
+          child: EstudianteMainLayout(
+            initialIndex: initialIndex, // ✅ Usar el índice de la URL
+          ),
+        );
+      },
+
+      // ==================== DOCENTE (PROTEGIDO - SOLO DOCENTES) ====================
+      docenteHome: (context) {
+        // ✅ NUEVO: Obtener el parámetro 'tab' de la URL (solo en web)
+        int initialIndex = 1; // Default: tab de Cursos
+        
+        if (kIsWeb) {
+          try {
+            final uri = Uri.base;
+            final tabParam = uri.queryParameters['tab'];
+            initialIndex = int.tryParse(tabParam ?? '1') ?? 1;
+          } catch (e) {
+            // Si hay error, usar el índice por defecto
+            initialIndex = 1;
+          }
+        }
+
+        return ProtectedRoute(
+          allowedRoles: const ['docente'],
+          child: DocenteMainLayout(
+            initialIndex: initialIndex, // ✅ Usar el índice de la URL
+          ),
+        );
+      },
+
+      // ==================== PORTAFOLIO (PROTEGIDO - TODOS LOS ROLES) ====================
+      portafolio: (context) => ProtectedRoute(
+        child: const PortafolioScreen(),
+      ),
+      
+      agregarReceta: (context) => ProtectedRoute(
+        child: const AgregarRecetaScreen(),
+      ),
     };
   }
 
@@ -138,7 +193,7 @@ class AppRoutes {
     return Navigator.pushNamed(context, matriculas);
   }
 
-  /// ✅ AGREGADO: Navegar a crear usuario
+  /// Navegar a crear usuario
   static Future<void> navigateToCrearUsuario(BuildContext context) {
     return Navigator.pushNamed(context, crearUsuario);
   }

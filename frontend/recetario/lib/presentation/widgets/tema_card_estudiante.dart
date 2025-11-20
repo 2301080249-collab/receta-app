@@ -31,6 +31,7 @@ class _TemaCardEstudianteState extends State<TemaCardEstudiante> {
     _materialRepository = MaterialRepository();
   }
 
+  // ✅ FUNCIÓN ÚNICA: Descargar/abrir material
   Future<void> _abrirMaterial(mat.Material material) async {
     try {
       final uri = Uri.parse(material.urlArchivo);
@@ -43,30 +44,55 @@ class _TemaCardEstudianteState extends State<TemaCardEstudiante> {
           mode: LaunchMode.externalApplication,
         );
 
+        // Marcar como visto
         if (!(material.vistoPorMi ?? false)) {
           try {
             await _materialRepository.marcarComoVisto(material.id);
             widget.onMaterialVisto();
-            
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Material abierto: ${material.titulo}'),
-                  duration: const Duration(seconds: 2),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
           } catch (e) {
             // Error silencioso al marcar como visto
           }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.download, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Abriendo: ${material.titulo}'),
+                  ),
+                ],
+              ),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.green[700],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('No se puede abrir el archivo: ${material.titulo}'),
-              backgroundColor: Colors.red,
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text('No se puede abrir el archivo'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red[700],
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           );
         }
@@ -75,8 +101,20 @@ class _TemaCardEstudianteState extends State<TemaCardEstudiante> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al abrir material: $e'),
-            backgroundColor: Colors.red,
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Error al abrir material: $e'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -184,6 +222,8 @@ class _TemaCardEstudianteState extends State<TemaCardEstudiante> {
       margin: const EdgeInsets.only(bottom: 8),
       color: material.vistoPorMi ?? false ? Colors.green[50] : null,
       child: ListTile(
+        // ✅ SOLO ESTO: Hacer clic para descargar
+        onTap: () => _abrirMaterial(material),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -199,94 +239,68 @@ class _TemaCardEstudianteState extends State<TemaCardEstudiante> {
                 : Colors.blue[800],
           ),
         ),
-        title: Text(material.titulo),
+        title: Text(
+          material.titulo,
+          style: const TextStyle(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (material.descripcion != null && material.descripcion!.isNotEmpty)
+              Text(
+                material.descripcion!,
+                style: const TextStyle(fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             Text(
-              material.descripcion ?? '',
-              style: const TextStyle(fontSize: 12),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              material.tamanoFormateado,
+              '${material.tipo.toUpperCase()} • ${material.tamanoFormateado}',
               style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
         ),
+        // ✅ SOLO ÍCONO DE CHECK SI YA LO VIO
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (material.vistoPorMi ?? false)
-              Icon(Icons.check_circle, color: Colors.green[600], size: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green[700],
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Visto',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.visibility),
-              onPressed: () => _abrirMaterial(material),
-              tooltip: 'Ver',
-            ),
-            IconButton(
-              icon: const Icon(Icons.download),
-              onPressed: () => _descargarMaterial(material),
-              tooltip: 'Descargar',
+            Icon(
+              Icons.download,
+              color: Colors.grey[600],
             ),
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _descargarMaterial(mat.Material material) async {
-    try {
-      final uri = Uri.parse(material.urlArchivo);
-      
-      final canLaunch = await canLaunchUrl(uri);
-      
-      if (canLaunch) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-
-        if (!(material.vistoPorMi ?? false)) {
-          try {
-            await _materialRepository.marcarComoVisto(material.id);
-            widget.onMaterialVisto();
-          } catch (e) {
-            // Error silencioso
-          }
-        }
-      
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Descargando: ${material.titulo}'),
-              duration: const Duration(seconds: 2),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No se puede descargar el archivo'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al descargar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   Widget _buildTareaItem(Tarea tarea) {
@@ -298,7 +312,6 @@ class _TemaCardEstudianteState extends State<TemaCardEstudiante> {
               ? Colors.red[50]
               : null,
       child: ListTile(
-        // ✅ NUEVO: Icono rosa igual al del docente
         leading: CircleAvatar(
           backgroundColor: Colors.pink[100],
           radius: 20,

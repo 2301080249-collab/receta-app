@@ -10,7 +10,7 @@ COPY . .
 # ✅ Copiar .env de producción
 COPY .env.production .env
 
-RUN flutter build web --release --web-renderer html
+RUN flutter build web --release
 
 FROM nginx:alpine
 

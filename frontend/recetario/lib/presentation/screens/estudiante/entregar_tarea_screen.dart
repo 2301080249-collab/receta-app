@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 import '../../../data/models/tarea.dart';
 import '../../../data/models/entrega.dart';
 import '../../../data/models/curso.dart';
@@ -40,6 +43,7 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
   bool _isSubmitting = false;
   bool _isLoading = true;
   bool _isLoadingCurso = true;
+  bool _modoEdicion = false; // ✅ NUEVO: Controla si está editando
 
   Entrega? _entregaExistente;
   Curso? _curso;
@@ -58,7 +62,6 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
     _temaRepository = TemaRepository();
     _cursoRepository = CursoRepository();
     
-    // Inicializar temas expandidos
     for (int i = 1; i <= 16; i++) {
       _temasExpandidos[i] = false;
     }
@@ -243,12 +246,92 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
     }
   }
 
+  // ✅ FUNCIÓN CON DISEÑO IDÉNTICO A CURSOS_SCREEN
+void _mostrarDialogoExito() {
+  AwesomeDialog(
+    context: context,
+    dialogType: DialogType.success,
+    animType: AnimType.scale,
+    
+    // 🎨 ÍCONO VERDE CIRCULAR CON SOMBRA (IDÉNTICO)
+    customHeader: Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: const Color(0xFF10B981), // ✅ Verde exacto
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.check_circle_rounded,
+        color: Colors.white,
+        size: 60,
+      ),
+    ),
+    
+    title: '¡Tarea entregada!',
+    desc: _entregaExistente != null 
+        ? 'Tu tarea se actualizó correctamente.'
+        : 'Tu tarea se entregó exitosamente.',
+    
+    btnOkText: 'Aceptar',
+    width: MediaQuery.of(context).size.width < 600 ? null : 500,
+    
+    btnOkOnPress: () {
+      Navigator.pop(context, true);
+    },
+    
+    btnOkColor: const Color(0xFF10B981),
+    dismissOnTouchOutside: false,
+    headerAnimationLoop: false,
+  ).show();
+}
+  // ✅ NUEVA FUNCIÓN: Activar modo edición
+  void _activarEdicion() {
+    setState(() {
+      _modoEdicion = true;
+    });
+  }
+
+  // ✅ NUEVA FUNCIÓN: Cancelar edición
+  void _cancelarEdicion() {
+    setState(() {
+      _modoEdicion = false;
+      _archivosNuevos.clear();
+      if (_entregaExistente != null) {
+        _tituloController.text = _entregaExistente!.titulo;
+        _descripcionController.text = _entregaExistente!.descripcion ?? '';
+      }
+    });
+  }
+
   Future<void> _entregarTarea() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (_archivosNuevos.isEmpty && _entregaExistente == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debes adjuntar al menos un archivo')),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.white),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Debes adjuntar al menos un archivo'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
       return;
     }
@@ -257,14 +340,12 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
 
     try {
       if (_entregaExistente != null) {
-        // Actualizar entrega existente
         await _entregaRepository.editarEntrega(
           entregaId: _entregaExistente!.id,
           titulo: _tituloController.text,
           descripcion: _descripcionController.text,
         );
         
-        // Subir archivos nuevos
         for (final archivo in _archivosNuevos) {
           await _entregaRepository.subirArchivo(
             entregaId: _entregaExistente!.id,
@@ -272,14 +353,12 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
           );
         }
       } else {
-        // Crear nueva entrega
         final nuevaEntrega = await _entregaRepository.crearEntrega(
           tareaId: widget.tarea.id,
           titulo: _tituloController.text,
           descripcion: _descripcionController.text,
         );
         
-        // Subir archivos
         for (final archivo in _archivosNuevos) {
           await _entregaRepository.subirArchivo(
             entregaId: nuevaEntrega.id,
@@ -289,25 +368,53 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tarea entregada exitosamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true);
+        setState(() => _isSubmitting = false);
+        _mostrarDialogoExito();
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al entregar tarea: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  if (mounted) {
+    setState(() => _isSubmitting = false);
+    
+    // ❌ DIALOG DE ERROR IDÉNTICO
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.error,
+      animType: AnimType.scale,
+      
+      // 🎨 ÍCONO ROJO CIRCULAR CON SOMBRA
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444), // ✅ Rojo exacto
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFEF4444).withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.error_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      
+      title: 'Error',
+      desc: 'No se pudo entregar la tarea: $e',
+      
+      btnOkText: 'Cerrar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      
+      btnOkOnPress: () {},
+      btnOkColor: const Color(0xFFEF4444),
+      headerAnimationLoop: false,
+    ).show();
+  }
+}
   }
 
   @override
@@ -320,6 +427,9 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
   @override
   Widget build(BuildContext context) {
     final estaCalificada = _entregaExistente?.estaCalificada ?? false;
+    final yaEntrego = _entregaExistente != null;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -330,8 +440,7 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
           Expanded(
             child: Row(
               children: [
-                // Sidebar
-                if (_curso != null)
+                if (_curso != null && !isMobile)
                   CursoSidebarWidget(
                     curso: _curso!,
                     temas: _temas,
@@ -342,31 +451,33 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
                     onTemaToggle: _toggleTema,
                   ),
                 
-                // Contenido
                 Expanded(
                   child: _isLoading || _isLoadingCurso
                       ? const Center(child: CircularProgressIndicator())
                       : Form(
                           key: _formKey,
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Información de la tarea
-                                _buildInfoTarea(),
-                                
-                                const SizedBox(height: 24),
-                                
-                                // Calificación (si existe)
-                                if (estaCalificada) ...[
-                                  _buildCalificacionCard(),
-                                  const SizedBox(height: 24),
-                                ],
-                                
-                                // Formulario de entrega
-                                _buildFormularioEntrega(estaCalificada),
-                              ],
+                            padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 16.w : 24)),
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: kIsWeb ? 900 : double.infinity,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildInfoTarea(isMobile),
+                                    SizedBox(height: kIsWeb ? 24 : (isMobile ? 16.h : 24)),
+                                    
+                                    if (estaCalificada) ...[
+                                      _buildCalificacionCard(isMobile),
+                                      SizedBox(height: kIsWeb ? 24 : (isMobile ? 16.h : 24)),
+                                    ],
+                                    
+                                    _buildFormularioEntrega(estaCalificada, yaEntrego, isMobile),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -379,17 +490,17 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
     );
   }
 
-  Widget _buildInfoTarea() {
+  Widget _buildInfoTarea(bool isMobile) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 16.w : 24)),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF37474F), Color(0xFF455A64)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(kIsWeb ? 12 : 12.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -403,12 +514,16 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.assignment, color: Colors.white70, size: 20),
-              const SizedBox(width: 8),
+              Icon(
+                Icons.assignment,
+                color: Colors.white70,
+                size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
+              ),
+              SizedBox(width: kIsWeb ? 8 : (isMobile ? 6.w : 8)),
               Text(
                 'INFORMACIÓN DE LA TAREA',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                   fontWeight: FontWeight.bold,
                   color: Colors.white.withOpacity(0.8),
                   letterSpacing: 1.2,
@@ -416,55 +531,82 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
           Text(
             widget.tarea.titulo,
-            style: const TextStyle(
-              fontSize: 24,
+            style: TextStyle(
+              fontSize: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
           if (widget.tarea.descripcion != null) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: kIsWeb ? 12 : (isMobile ? 8.h : 12)),
             Text(
               widget.tarea.descripcion!,
-              style: const TextStyle(
-                fontSize: 14,
+              style: TextStyle(
+                fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
                 color: Colors.white70,
               ),
             ),
           ],
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(Icons.calendar_today, color: Colors.white70, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                'Fecha límite: ${DateFormat('dd/MM/yyyy').format(widget.tarea.fechaLimite)}',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              const SizedBox(width: 24),
-              const Icon(Icons.grade, color: Colors.white70, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                'Puntaje: ${widget.tarea.puntajeMaximo}',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
-          ),
+          SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
+          isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, color: Colors.white70, size: 14.sp),
+                        SizedBox(width: 6.w),
+                        Text(
+                          'Fecha límite: ${DateFormat('dd/MM/yyyy').format(widget.tarea.fechaLimite)}',
+                          style: TextStyle(color: Colors.white70, fontSize: 13.sp),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Icon(Icons.grade, color: Colors.white70, size: 14.sp),
+                        SizedBox(width: 6.w),
+                        Text(
+                          'Puntaje: ${widget.tarea.puntajeMaximo}',
+                          style: TextStyle(color: Colors.white70, fontSize: 13.sp),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Colors.white70, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Fecha límite: ${DateFormat('dd/MM/yyyy').format(widget.tarea.fechaLimite)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(width: 24),
+                    const Icon(Icons.grade, color: Colors.white70, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Puntaje: ${widget.tarea.puntajeMaximo}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
+                ),
         ],
       ),
     );
   }
 
-  Widget _buildCalificacionCard() {
+  Widget _buildCalificacionCard(bool isMobile) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 16.w : 24)),
       decoration: BoxDecoration(
         color: Colors.green[50],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(kIsWeb ? 12 : 12.r),
         border: Border.all(color: Colors.green[200]!, width: 2),
       ),
       child: Column(
@@ -472,12 +614,16 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.green[700], size: 24),
-              const SizedBox(width: 12),
+              Icon(
+                Icons.check_circle,
+                color: Colors.green[700],
+                size: kIsWeb ? 24 : (isMobile ? 22.sp : 24),
+              ),
+              SizedBox(width: kIsWeb ? 12 : (isMobile ? 10.w : 12)),
               Text(
                 'TAREA CALIFICADA',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
                   fontWeight: FontWeight.bold,
                   color: Colors.green[700],
                   letterSpacing: 1.2,
@@ -485,13 +631,13 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
           Row(
             children: [
               Text(
                 'Calificación: ',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: kIsWeb ? 16 : (isMobile ? 15.sp : 16),
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[700],
                 ),
@@ -499,7 +645,7 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
               Text(
                 '${_entregaExistente!.calificacion?.toStringAsFixed(0) ?? 0} / ${widget.tarea.puntajeMaximo}',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: kIsWeb ? 24 : (isMobile ? 22.sp : 24),
                   fontWeight: FontWeight.bold,
                   color: Colors.green[700],
                 ),
@@ -507,19 +653,22 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
             ],
           ),
           if (_entregaExistente!.comentarioDocente != null) ...[
-            const SizedBox(height: 16),
+            SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
             Text(
               'Comentario del docente:',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                 fontWeight: FontWeight.bold,
                 color: Colors.grey[700],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: kIsWeb ? 8 : (isMobile ? 6.h : 8)),
             Text(
               _entregaExistente!.comentarioDocente!,
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              style: TextStyle(
+                fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
+                color: Colors.black87,
+              ),
             ),
           ],
         ],
@@ -527,12 +676,15 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
     );
   }
 
-  Widget _buildFormularioEntrega(bool estaCalificada) {
+  Widget _buildFormularioEntrega(bool estaCalificada, bool yaEntrego, bool isMobile) {
+    // ✅ Si ya entregó y NO está en modo edición, los campos están deshabilitados
+    final camposHabilitados = !estaCalificada && (!yaEntrego || _modoEdicion);
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 16.w : 24)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(kIsWeb ? 12 : 12.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -545,27 +697,33 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            estaCalificada ? 'TU ENTREGA' : 'ENTREGAR TAREA',
+            estaCalificada ? 'TU ENTREGA' : (yaEntrego ? 'TU ENTREGA' : 'ENTREGAR TAREA'),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
               fontWeight: FontWeight.bold,
               color: Colors.grey[700],
               letterSpacing: 1.2,
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: kIsWeb ? 24 : (isMobile ? 16.h : 24)),
           
           // Título
           TextFormField(
             controller: _tituloController,
-            enabled: !estaCalificada,
+            enabled: camposHabilitados,
+            style: TextStyle(fontSize: kIsWeb ? 16 : (isMobile ? 14.sp : 16)),
             decoration: InputDecoration(
               labelText: 'Título de la entrega',
+              labelStyle: TextStyle(fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14)),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
               ),
               filled: true,
-              fillColor: estaCalificada ? Colors.grey[100] : Colors.white,
+              fillColor: camposHabilitados ? Colors.white : Colors.grey[100],
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: kIsWeb ? 16 : (isMobile ? 12.w : 16),
+                vertical: kIsWeb ? 16 : (isMobile ? 12.h : 16),
+              ),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -575,40 +733,46 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
             },
           ),
           
-          const SizedBox(height: 16),
+          SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
           
           // Descripción
           TextFormField(
             controller: _descripcionController,
-            enabled: !estaCalificada,
-            maxLines: 4,
+            enabled: camposHabilitados,
+            maxLines: kIsWeb ? 4 : (isMobile ? 3 : 4),
+            style: TextStyle(fontSize: kIsWeb ? 16 : (isMobile ? 14.sp : 16)),
             decoration: InputDecoration(
               labelText: 'Descripción (opcional)',
+              labelStyle: TextStyle(fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14)),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
               ),
               filled: true,
-              fillColor: estaCalificada ? Colors.grey[100] : Colors.white,
+              fillColor: camposHabilitados ? Colors.white : Colors.grey[100],
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: kIsWeb ? 16 : (isMobile ? 12.w : 16),
+                vertical: kIsWeb ? 16 : (isMobile ? 12.h : 16),
+              ),
             ),
           ),
           
-          const SizedBox(height: 24),
+          SizedBox(height: kIsWeb ? 24 : (isMobile ? 16.h : 24)),
           
           // Archivos existentes
           if (_archivosExistentes.isNotEmpty) ...[
             Text(
               'Archivos actuales',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                 fontWeight: FontWeight.bold,
                 color: Colors.grey[700],
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: kIsWeb ? 12 : (isMobile ? 10.h : 12)),
             ..._archivosExistentes.map((archivo) {
-              return _buildArchivoExistente(archivo, estaCalificada);
+              return _buildArchivoExistente(archivo, estaCalificada, isMobile, camposHabilitados);
             }).toList(),
-            const SizedBox(height: 24),
+            SizedBox(height: kIsWeb ? 24 : (isMobile ? 16.h : 24)),
           ],
           
           // Archivos nuevos
@@ -616,97 +780,255 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
             Text(
               'Archivos nuevos',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                 fontWeight: FontWeight.bold,
                 color: Colors.grey[700],
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: kIsWeb ? 12 : (isMobile ? 10.h : 12)),
             ..._archivosNuevos.asMap().entries.map((entry) {
-              return _buildArchivoNuevo(entry.value, entry.key);
+              return _buildArchivoNuevo(entry.value, entry.key, isMobile);
             }).toList(),
-            const SizedBox(height: 24),
+            SizedBox(height: kIsWeb ? 24 : (isMobile ? 16.h : 24)),
           ],
           
-          // Botones
+          // ✅ BOTONES DINÁMICOS
           if (!estaCalificada) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting ? null : _seleccionarArchivos,
-                    icon: const Icon(Icons.attach_file),
-                    label: const Text('Adjuntar archivos'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
+            isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _buildBotones(yaEntrego, isMobile),
+                  )
+                : Row(
+                    children: _buildBotones(yaEntrego, isMobile),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isSubmitting ? null : _entregarTarea,
-                    icon: _isSubmitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.send),
-                    label: Text(_entregaExistente != null ? 'Actualizar' : 'Entregar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildArchivoExistente(ArchivoEntrega archivo, bool estaCalificada) {
+  // ✅ NUEVA FUNCIÓN: Construir botones dinámicos
+ // ✅ NUEVA FUNCIÓN: Construir botones dinámicos CON ADJUNTAR EN EDICIÓN
+List<Widget> _buildBotones(bool yaEntrego, bool isMobile) {
+  if (!yaEntrego) {
+    // NO ha entregado → Botones: Adjuntar + Entregar
+    return isMobile
+        ? [
+            OutlinedButton.icon(
+              onPressed: _isSubmitting ? null : _seleccionarArchivos,
+              icon: Icon(Icons.attach_file, size: 18.sp),
+              label: Text('Adjuntar archivos', style: TextStyle(fontSize: 14.sp)),
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(vertical: 14.h),
+                side: BorderSide(color: _isSubmitting ? Colors.grey : const Color(0xFF455A64)),
+              ),
+            ),
+            SizedBox(height: 12.h),
+            ElevatedButton.icon(
+              onPressed: _isSubmitting ? null : _entregarTarea,
+              icon: _isSubmitting
+                  ? SizedBox(
+                      width: 18.w,
+                      height: 18.h,
+                      child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Icon(Icons.send, size: 18.sp),
+              label: Text('Entregar', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 14.h),
+              ),
+            ),
+          ]
+        : [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isSubmitting ? null : _seleccionarArchivos,
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Adjuntar archivos'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: _isSubmitting ? Colors.grey : const Color(0xFF455A64)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _entregarTarea,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.send),
+                label: const Text('Entregar', style: TextStyle(fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ];
+  } else if (!_modoEdicion) {
+    // YA entregó y NO está editando → Botón: Editar
+    return [
+      if (isMobile)
+        ElevatedButton.icon(
+          onPressed: _activarEdicion,
+          icon: Icon(Icons.edit, size: 18.sp),
+          label: Text('Editar entrega', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(vertical: 14.h),
+          ),
+        )
+      else
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _activarEdicion,
+            icon: const Icon(Icons.edit),
+            label: const Text('Editar entrega', style: TextStyle(fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+    ];
+  } else {
+    // ✅ Está en modo edición → Botones: Adjuntar + Actualizar + Cancelar
+    return isMobile
+        ? [
+            // ✅ AGREGADO: Botón adjuntar en modo edición móvil
+            OutlinedButton.icon(
+              onPressed: _isSubmitting ? null : _seleccionarArchivos,
+              icon: Icon(Icons.attach_file, size: 18.sp),
+              label: Text('Adjuntar archivos', style: TextStyle(fontSize: 14.sp)),
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(vertical: 14.h),
+                side: BorderSide(color: _isSubmitting ? Colors.grey : const Color(0xFF455A64)),
+              ),
+            ),
+            SizedBox(height: 12.h),
+            ElevatedButton.icon(
+              onPressed: _isSubmitting ? null : _entregarTarea,
+              icon: _isSubmitting
+                  ? SizedBox(
+                      width: 18.w,
+                      height: 18.h,
+                      child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Icon(Icons.check, size: 18.sp),
+              label: Text('Actualizar', style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 14.h),
+              ),
+            ),
+            SizedBox(height: 12.h),
+            OutlinedButton.icon(
+              onPressed: _isSubmitting ? null : _cancelarEdicion,
+              icon: Icon(Icons.close, size: 18.sp),
+              label: Text('Cancelar', style: TextStyle(fontSize: 14.sp)),
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(vertical: 14.h),
+                side: const BorderSide(color: Colors.red),
+                foregroundColor: Colors.red,
+              ),
+            ),
+          ]
+        : [
+            // ✅ AGREGADO: Botón adjuntar en modo edición desktop
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isSubmitting ? null : _seleccionarArchivos,
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Adjuntar archivos'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: _isSubmitting ? Colors.grey : const Color(0xFF455A64)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isSubmitting ? null : _cancelarEdicion,
+                icon: const Icon(Icons.close),
+                label: const Text('Cancelar'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.red),
+                  foregroundColor: Colors.red,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _entregarTarea,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.check),
+                label: const Text('Actualizar', style: TextStyle(fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ];
+  }
+}
+
+  Widget _buildArchivoExistente(ArchivoEntrega archivo, bool estaCalificada, bool isMobile, bool camposHabilitados) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: kIsWeb ? 12 : (isMobile ? 10.h : 12)),
+      padding: EdgeInsets.all(kIsWeb ? 16 : (isMobile ? 12.w : 16)),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: kIsWeb ? 40 : (isMobile ? 36.w : 40),
+            height: kIsWeb ? 40 : (isMobile ? 36.h : 40),
             decoration: BoxDecoration(
               color: _getFileColor(archivo.tipoArchivo),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
             ),
             child: Center(
               child: Icon(
                 _getFileIcon(archivo.tipoArchivo),
                 color: Colors.white,
-                size: 20,
+                size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: kIsWeb ? 12 : (isMobile ? 10.w : 12)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   archivo.nombreArchivo,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
@@ -715,7 +1037,7 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
                 Text(
                   archivo.tamanoFormateado,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                     color: Colors.grey[600],
                   ),
                 ),
@@ -723,12 +1045,20 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.download, color: Colors.blue),
+            icon: Icon(
+              Icons.download,
+              color: Colors.blue,
+              size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
+            ),
             onPressed: () => _descargarArchivo(archivo),
           ),
-          if (!estaCalificada)
+          if (camposHabilitados)
             IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
+              icon: Icon(
+                Icons.delete,
+                color: Colors.red,
+                size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
+              ),
               onPressed: () => _eliminarArchivoExistente(archivo),
             ),
         ],
@@ -736,41 +1066,41 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
     );
   }
 
-  Widget _buildArchivoNuevo(PlatformFile archivo, int index) {
+  Widget _buildArchivoNuevo(PlatformFile archivo, int index, bool isMobile) {
     final sizeInMB = (archivo.size / (1024 * 1024)).toStringAsFixed(2);
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: kIsWeb ? 12 : (isMobile ? 10.h : 12)),
+      padding: EdgeInsets.all(kIsWeb ? 16 : (isMobile ? 12.w : 16)),
       decoration: BoxDecoration(
         color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
         border: Border.all(color: Colors.blue[200]!),
       ),
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: kIsWeb ? 40 : (isMobile ? 36.w : 40),
+            height: kIsWeb ? 40 : (isMobile ? 36.h : 40),
             decoration: BoxDecoration(
               color: Colors.blue[700],
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.insert_drive_file,
               color: Colors.white,
-              size: 20,
+              size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: kIsWeb ? 12 : (isMobile ? 10.w : 12)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   archivo.name,
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
@@ -779,7 +1109,7 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
                 Text(
                   '$sizeInMB MB',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                     color: Colors.grey[600],
                   ),
                 ),
@@ -787,7 +1117,11 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.red),
+            icon: Icon(
+              Icons.close,
+              color: Colors.red,
+              size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
+            ),
             onPressed: () => _eliminarArchivoNuevo(index),
           ),
         ],

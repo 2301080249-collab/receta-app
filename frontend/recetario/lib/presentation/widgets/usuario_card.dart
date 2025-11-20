@@ -210,27 +210,7 @@ class UsuarioCard extends StatelessWidget {
       }
     },
     itemBuilder: (context) => [
-      // ❌ ELIMINA TODO ESTE PopupMenuItem
-      // PopupMenuItem(
-      //   value: 'ver',
-      //   child: Row(
-      //     children: [
-      //       Icon(
-      //         Icons.remove_red_eye_rounded,
-      //         size: 18,
-      //         color: Color(0xFF64748B),
-      //       ),
-      //       const SizedBox(width: 12),
-      //       Text(
-      //         'Ver detalles',
-      //         style: TextStyle(
-      //           fontSize: 14,
-      //           fontWeight: FontWeight.w500,
-      //         ),
-      //       ),
-      //     ],
-      //   ),
-      // ),
+    
       PopupMenuItem(
         value: 'editar',
         child: Row(

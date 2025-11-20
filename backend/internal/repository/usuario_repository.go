@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"recetario-backend/internal/config"
+	"strings"
 )
 
 type usuarioRepository struct {
@@ -189,4 +190,196 @@ func (r *usuarioRepository) GetAdministradorByUserID(userID string) ([]byte, err
 	headers := r.client.GetAuthHeaders()
 
 	return r.client.DoRequest("GET", url, nil, headers)
+}
+
+// ==================== 🆕 MÉTODOS PARA FILTRAR USUARIOS POR RELACIÓN DE CURSO ====================
+
+// GetUsuariosRelacionadosPorCurso obtiene usuarios relacionados por curso
+// IMPORTANTE: matriculas.estudiante_id → estudiantes.usuario_id (no estudiantes.id)
+func (r *usuarioRepository) GetUsuariosRelacionadosPorCurso(userID string, userRol string) ([]byte, error) {
+	headers := r.client.GetAuthHeaders()
+
+	switch userRol {
+	case "estudiante":
+		return r.getUsuariosParaEstudiante(userID, headers)
+	case "docente":
+		return r.getUsuariosParaDocente(userID, headers)
+	default:
+		// Para admin u otros roles, devolver lista vacía
+		return []byte("[]"), nil
+	}
+}
+
+// getUsuariosParaEstudiante: compañeros de curso + docentes
+func (r *usuarioRepository) getUsuariosParaEstudiante(userID string, headers map[string]string) ([]byte, error) {
+	// Paso 1: Obtener cursos del estudiante (matriculas.estudiante_id = estudiantes.usuario_id = userID)
+	matriculasResp, err := r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/matriculas?estudiante_id=eq.%s&select=curso_id",
+			config.AppConfig.SupabaseURL, userID),
+		nil, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var matriculas []map[string]interface{}
+	if err := json.Unmarshal(matriculasResp, &matriculas); err != nil || len(matriculas) == 0 {
+		return []byte("[]"), nil
+	}
+
+	// Extraer IDs únicos de cursos
+	cursoIDsMap := make(map[string]bool)
+	for _, m := range matriculas {
+		if cursoID, ok := m["curso_id"].(string); ok {
+			cursoIDsMap[cursoID] = true
+		}
+	}
+
+	if len(cursoIDsMap) == 0 {
+		return []byte("[]"), nil
+	}
+
+	// Convertir a slice
+	cursoIDs := make([]string, 0, len(cursoIDsMap))
+	for id := range cursoIDsMap {
+		cursoIDs = append(cursoIDs, id)
+	}
+
+	usuariosIDsMap := make(map[string]bool)
+
+	// Paso 2: Obtener compañeros (estudiantes en los mismos cursos)
+	cursoIDsFilter := "(" + strings.Join(cursoIDs, ",") + ")"
+	companerosResp, err := r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/matriculas?curso_id=in.%s&estudiante_id=neq.%s&select=estudiante_id",
+			config.AppConfig.SupabaseURL, cursoIDsFilter, userID),
+		nil, headers)
+
+	if err == nil {
+		var companeros []map[string]interface{}
+		if err := json.Unmarshal(companerosResp, &companeros); err == nil {
+			for _, c := range companeros {
+				// estudiante_id ya ES el usuario_id
+				if estudianteUserID, ok := c["estudiante_id"].(string); ok {
+					usuariosIDsMap[estudianteUserID] = true
+				}
+			}
+		}
+	}
+
+	// Paso 3: Obtener docentes de los cursos
+	cursosResp, err := r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/cursos?id=in.%s&select=docente_id",
+			config.AppConfig.SupabaseURL, cursoIDsFilter),
+		nil, headers)
+
+	if err == nil {
+		var cursos []map[string]interface{}
+		if err := json.Unmarshal(cursosResp, &cursos); err == nil {
+			for _, c := range cursos {
+				// docente_id ya ES el usuario_id del docente
+				if docenteUserID, ok := c["docente_id"].(string); ok && docenteUserID != "" {
+					usuariosIDsMap[docenteUserID] = true
+				}
+			}
+		}
+	}
+
+	// Paso 4: Obtener datos completos de usuarios
+	if len(usuariosIDsMap) == 0 {
+		return []byte("[]"), nil
+	}
+
+	usuariosIDs := make([]string, 0, len(usuariosIDsMap))
+	for id := range usuariosIDsMap {
+		usuariosIDs = append(usuariosIDs, id)
+	}
+
+	usuariosFilter := "(" + strings.Join(usuariosIDs, ",") + ")"
+	return r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/usuarios?id=in.%s&activo=eq.true&select=id,codigo,nombre_completo,rol,avatar_url",
+			config.AppConfig.SupabaseURL, usuariosFilter),
+		nil, headers)
+}
+
+// getUsuariosParaDocente: estudiantes de sus cursos + otros docentes
+func (r *usuarioRepository) getUsuariosParaDocente(userID string, headers map[string]string) ([]byte, error) {
+	// Paso 1: Obtener cursos que enseña el docente (cursos.docente_id = docentes.usuario_id = userID)
+	cursosResp, err := r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/cursos?docente_id=eq.%s&select=id",
+			config.AppConfig.SupabaseURL, userID),
+		nil, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var cursos []map[string]interface{}
+	if err := json.Unmarshal(cursosResp, &cursos); err != nil || len(cursos) == 0 {
+		return []byte("[]"), nil
+	}
+
+	// Extraer IDs de cursos
+	cursoIDs := make([]string, 0)
+	for _, c := range cursos {
+		if cursoID, ok := c["id"].(string); ok {
+			cursoIDs = append(cursoIDs, cursoID)
+		}
+	}
+
+	if len(cursoIDs) == 0 {
+		return []byte("[]"), nil
+	}
+
+	usuariosIDsMap := make(map[string]bool)
+
+	// Paso 2: Obtener estudiantes matriculados en estos cursos
+	cursoIDsFilter := "(" + strings.Join(cursoIDs, ",") + ")"
+	matriculasResp, err := r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/matriculas?curso_id=in.%s&select=estudiante_id",
+			config.AppConfig.SupabaseURL, cursoIDsFilter),
+		nil, headers)
+
+	if err == nil {
+		var matriculas []map[string]interface{}
+		if err := json.Unmarshal(matriculasResp, &matriculas); err == nil {
+			for _, m := range matriculas {
+				// estudiante_id ya ES el usuario_id
+				if estudianteUserID, ok := m["estudiante_id"].(string); ok {
+					usuariosIDsMap[estudianteUserID] = true
+				}
+			}
+		}
+	}
+
+	// Paso 3: Obtener otros docentes de estos cursos
+	cursosDocentesResp, err := r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/cursos?id=in.%s&docente_id=neq.%s&select=docente_id",
+			config.AppConfig.SupabaseURL, cursoIDsFilter, userID),
+		nil, headers)
+
+	if err == nil {
+		var cursosDocentes []map[string]interface{}
+		if err := json.Unmarshal(cursosDocentesResp, &cursosDocentes); err == nil {
+			for _, c := range cursosDocentes {
+				// docente_id ya ES el usuario_id
+				if docenteUserID, ok := c["docente_id"].(string); ok && docenteUserID != "" {
+					usuariosIDsMap[docenteUserID] = true
+				}
+			}
+		}
+	}
+
+	// Paso 4: Obtener datos completos de usuarios
+	if len(usuariosIDsMap) == 0 {
+		return []byte("[]"), nil
+	}
+
+	usuariosIDs := make([]string, 0, len(usuariosIDsMap))
+	for id := range usuariosIDsMap {
+		usuariosIDs = append(usuariosIDs, id)
+	}
+
+	usuariosFilter := "(" + strings.Join(usuariosIDs, ",") + ")"
+	return r.client.DoRequest("GET",
+		fmt.Sprintf("%s/rest/v1/usuarios?id=in.%s&activo=eq.true&select=id,codigo,nombre_completo,rol,avatar_url",
+			config.AppConfig.SupabaseURL, usuariosFilter),
+		nil, headers)
 }

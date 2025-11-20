@@ -107,3 +107,21 @@ func (r *cursoRepository) GetCursosByEstudiante(estudianteID string) ([]byte, er
 
 	return r.client.DoRequest("GET", url, nil, headers)
 }
+
+// ==================== VALIDACIONES ====================
+
+// ✅ NUEVO: Verificar si un curso tiene matrículas
+func (r *cursoRepository) CursoTieneMatriculas(cursoID string) (bool, error) {
+	url := config.AppConfig.SupabaseURL + "/rest/v1/matriculas?curso_id=eq." + cursoID + "&select=id&limit=1"
+
+	headers := r.client.GetAuthHeaders()
+
+	result, err := r.client.DoRequest("GET", url, nil, headers)
+	if err != nil {
+		return false, err
+	}
+
+	// Si la respuesta es "[]" significa que no hay matrículas
+	// Si hay algo más, significa que sí hay matrículas
+	return string(result) != "[]", nil
+}

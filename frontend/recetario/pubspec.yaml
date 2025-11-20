@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.9.2
+  sdk: '>=3.9.2 <4.0.0'
 
 dependencies:
   flutter:
@@ -21,28 +21,42 @@ dependencies:
   provider: ^6.1.0
   
   # Network
-  http: ^1.1.0
+  http: ^1.2.2
   http_parser: ^4.0.2
   
   # Supabase
-  supabase_flutter: ^2.0.0
+  supabase_flutter: ^2.10.2
   
   # Storage
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.3.2
   
   # File Handling
-  file_picker: ^8.0.0
-  path_provider: ^2.1.2
+  file_picker: ^8.1.4
+  path_provider: ^2.1.5
   
   # Utils
   intl: ^0.20.2
-  flutter_dotenv: ^5.1.0
-  url_launcher: ^6.2.5
+  flutter_dotenv: ^5.2.1
+  url_launcher: ^6.3.1
   
-  # ✨ NUEVAS - Para Portafolio
-  cached_network_image: ^3.3.1
-  youtube_player_flutter: ^9.0.3
+  # ✨ Para Portafolio
+  cached_network_image: ^3.4.1
+  youtube_player_flutter: ^9.1.1
   flutter_staggered_grid_view: ^0.7.0
+  image_picker: ^1.1.2
+  
+  # 🔔 Firebase SOLO para móvil
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
+  
+  # 📱 Responsive
+  flutter_screenutil: ^5.9.3
+  
+  # 🎨 Dialogs profesionales (estilo SweetAlert)
+  awesome_dialog: ^3.2.1
+   # ✅ AGREGAR ESTO: HTML multiplataforma
+  universal_html: ^2.2.4
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
+
 import '../../data/models/ciclo.dart';
 import '../../data/models/curso.dart';
 import '../../data/models/usuario.dart';
@@ -18,21 +20,17 @@ class DialogoMatriculaMasiva extends StatefulWidget {
 }
 
 class _DialogoMatriculaMasivaState extends State<DialogoMatriculaMasiva> {
-  // Data
   List<Ciclo> _ciclos = [];
   List<Curso> _cursos = [];
   List<Usuario> _todosEstudiantes = [];
   List<Usuario> _estudiantesFiltrados = [];
   
-  // Selections
   Ciclo? _cicloSeleccionado;
   Curso? _cursoSeleccionado;
   Set<String> _estudiantesSeleccionados = {};
   
-  // Búsqueda
   final TextEditingController _busquedaController = TextEditingController();
   
-  // Estado y observaciones
   String _estadoSeleccionado = 'activo';
   final TextEditingController _observacionesController = TextEditingController();
 
@@ -156,15 +154,15 @@ class _DialogoMatriculaMasivaState extends State<DialogoMatriculaMasiva> {
 
   Future<void> _matricularEstudiantes() async {
     if (_cursoSeleccionado == null) {
-      _mostrarError('Seleccione un curso');
+      _mostrarAdvertencia('Seleccione un curso');
       return;
     }
     if (_cicloSeleccionado == null) {
-      _mostrarError('Seleccione un ciclo académico');
+      _mostrarAdvertencia('Seleccione un ciclo académico');
       return;
     }
     if (_estudiantesSeleccionados.isEmpty) {
-      _mostrarError('Seleccione al menos un estudiante');
+      _mostrarAdvertencia('Seleccione al menos un estudiante');
       return;
     }
 
@@ -196,82 +194,146 @@ class _DialogoMatriculaMasivaState extends State<DialogoMatriculaMasiva> {
       }
     } catch (e) {
       if (mounted) {
-        _mostrarError('Error al matricular: $e');
-      }
-    } finally {
-      if (mounted) {
         setState(() => _isLoading = false);
+        _mostrarError('Error al matricular: $e');
       }
     }
   }
 
+  // ⚠️ ADVERTENCIA CON AWESOME DIALOG
+  void _mostrarAdvertencia(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.orange[600],
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: 'Campos Incompletos',
+      desc: mensaje,
+      btnOkText: 'Entendido',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {},
+      btnOkColor: Colors.orange[600],
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
+  }
+
+  // ❌ ERROR CON AWESOME DIALOG
+  void _mostrarError(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.error,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: AppTheme.errorColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.errorColor.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.error_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: 'Error',
+      desc: mensaje,
+      btnOkText: 'Cerrar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {},
+      btnOkColor: AppTheme.errorColor,
+      headerAnimationLoop: false,
+    ).show();
+  }
+
+  // ℹ️ RESULTADOS PARCIALES CON AWESOME DIALOG
   void _mostrarDialogoResultados(Map<String, dynamic> resultado) {
     final exitosos = resultado['exitosos'] ?? 0;
     final fallidos = resultado['fallidos'] ?? 0;
     final errores = resultado['errores'] as List? ?? [];
 
-    showDialog(
+    String erroresTexto = '';
+    if (errores.isNotEmpty) {
+      erroresTexto = '\n\nErrores:\n${errores.map((e) => '• $e').join('\n')}';
+    }
+
+    AwesomeDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.orange),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Proceso completado con advertencias',
-                style: TextStyle(fontSize: 16),
-              ),
+      dialogType: DialogType.info,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.orange[600],
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('✅ Exitosos: $exitosos'),
-              Text('❌ Fallidos: $fallidos'),
-              if (errores.isNotEmpty) ...[
-                SizedBox(height: 16),
-                Text('Errores:', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...errores.map((error) => Padding(
-                  padding: EdgeInsets.only(left: 8, top: 4),
-                  child: Text('• $error', style: TextStyle(fontSize: 12)),
-                )),
-              ],
-            ],
-          ),
+        child: const Icon(
+          Icons.info_rounded,
+          color: Colors.white,
+          size: 60,
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context, true);
-            },
-            child: Text('Cerrar'),
-          ),
-        ],
       ),
-    );
+      title: 'Proceso Completado',
+      desc: '✅ Exitosos: $exitosos\n❌ Fallidos: $fallidos$erroresTexto',
+      btnOkText: 'Cerrar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {
+        Navigator.pop(context, true);
+      },
+      btnOkColor: Colors.orange[600],
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 📱 Detectar si es móvil
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isMobile = screenWidth < 600;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      // ✅ RESPONSIVO: Padding adaptativo
       insetPadding: EdgeInsets.symmetric(
         horizontal: isMobile ? 16 : 40,
         vertical: isMobile ? 24 : 40,
       ),
       child: ConstrainedBox(
-        // ✅ RESPONSIVO: Ancho y alto adaptativos
         constraints: BoxConstraints(
           maxWidth: isMobile ? screenWidth : 800,
           maxHeight: isMobile ? screenHeight * 0.9 : 700,
@@ -363,7 +425,7 @@ class _DialogoMatriculaMasivaState extends State<DialogoMatriculaMasiva> {
             children: [
               DropdownButtonFormField<Ciclo>(
                 value: _cicloSeleccionado,
-                isExpanded: true, // ✅ FIX: Evita error
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: 'Ciclo Académico',
                   labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -422,7 +484,7 @@ class _DialogoMatriculaMasivaState extends State<DialogoMatriculaMasiva> {
               SizedBox(height: isMobile ? 12 : 16),
               DropdownButtonFormField<Curso>(
                 value: _cursoSeleccionado,
-                isExpanded: true, // ✅ FIX: Evita error
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: 'Curso',
                   labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -504,24 +566,24 @@ class _DialogoMatriculaMasivaState extends State<DialogoMatriculaMasiva> {
             padding: EdgeInsets.all(isMobile ? 12 : 16),
             decoration: BoxDecoration(
               color: Color(0xFF475569).withOpacity(0.1),
-borderRadius: BorderRadius.circular(12),
-border: Border.all(color: Color(0xFF475569).withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Color(0xFF475569).withOpacity(0.3)),
             ),
             child: Row(
               children: [
-               Icon(
-  Icons.info_outline,
-  color: Color(0xFF475569),
-  size: isMobile ? 20 : 24,
-),
+                Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF475569),
+                  size: isMobile ? 20 : 24,
+                ),
                 SizedBox(width: isMobile ? 8 : 12),
                 Expanded(
                   child: Text(
                     'Selecciona un curso primero para ver los estudiantes compatibles',
-                   style: TextStyle(
-  color: Color(0xFF475569),
-  fontSize: isMobile ? 12 : 14,
-),
+                    style: TextStyle(
+                      color: Color(0xFF475569),
+                      fontSize: isMobile ? 12 : 14,
+                    ),
                   ),
                 ),
               ],
@@ -722,7 +784,7 @@ border: Border.all(color: Color(0xFF475569).withOpacity(0.3)),
         SizedBox(height: isMobile ? 8 : 12),
         DropdownButtonFormField<String>(
           value: _estadoSeleccionado,
-          isExpanded: true, // ✅ FIX: Evita error
+          isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Estado por defecto',
             labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -765,19 +827,19 @@ border: Border.all(color: Color(0xFF475569).withOpacity(0.3)),
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-       TextButton(
-  onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
-  style: TextButton.styleFrom(
-    foregroundColor: AppTheme.textSecondary,
-  ),
-  child: Text(
-    'Cancelar',
-    style: TextStyle(
-      fontSize: isMobile ? 13 : 14,
-      fontWeight: FontWeight.w600,
-    ),
-  ),
-),
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
+          style: TextButton.styleFrom(
+            foregroundColor: AppTheme.textSecondary,
+          ),
+          child: Text(
+            'Cancelar',
+            style: TextStyle(
+              fontSize: isMobile ? 13 : 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         SizedBox(width: isMobile ? 8 : 12),
         Expanded(
           child: ElevatedButton.icon(
@@ -800,17 +862,6 @@ border: Border.all(color: Color(0xFF475569).withOpacity(0.3)),
           ),
         ),
       ],
-    );
-  }
-
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 }

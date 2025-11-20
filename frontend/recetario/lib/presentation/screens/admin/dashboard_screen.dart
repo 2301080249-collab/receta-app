@@ -131,52 +131,55 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ==================== ESTADÍSTICAS ====================
 
-  Widget _buildStatsSection(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 900;
+  // ==================== ESTADÍSTICAS ====================
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: isDesktop ? 4 : 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: isDesktop ? 1.4 : 1.1, // ✅ MÓVIL: 1.1 (más alto para evitar overflow)
-      children: [
-        StatCard(
-          title: 'Estudiantes',
-          value: '${_stats['total_estudiantes'] ?? 0}',
-          icon: Icons.school,
-          color: AppTheme.estudianteColor,
-          subtitle: '+0 nuevos',
-          onTap: () => Navigator.pushNamed(context, '/admin/usuarios'),
-        ),
-        StatCard(
-          title: 'Docentes',
-          value: '${_stats['total_docentes'] ?? 0}',
-          icon: Icons.person,
-          color: AppTheme.docenteColor,
-          subtitle: '+0 nuevos',
-          onTap: () => Navigator.pushNamed(context, '/admin/usuarios'),
-        ),
-        StatCard(
-          title: 'Recetas',
-          value: '${_stats['total_recetas'] ?? 0}',
-          icon: Icons.restaurant_menu,
-          color: AppTheme.accentColor,
-          subtitle: '+0 esta semana',
-          onTap: () => showInDevelopment('Recetas'),
-        ),
-        StatCard(
-          title: 'Categorías',
-          value: '${_stats['total_categorias'] ?? 0}',
-          icon: Icons.category,
-          color: Colors.purple,
-          subtitle: 'Total activas',
-          onTap: () => showInDevelopment('Categorías'),
-        ),
-      ],
-    );
-  }
+Widget _buildStatsSection(BuildContext context) {
+  final width = MediaQuery.of(context).size.width;
+  final isDesktop = width > 900;
+
+  return GridView.count(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    crossAxisCount: isDesktop ? 4 : 2,
+    crossAxisSpacing: 16,
+    mainAxisSpacing: 16,
+    childAspectRatio: isDesktop ? 1.4 : 0.95, // ✅ Cambiado de 1.1 a 0.95 (más alto)
+    children: [
+      StatCard(
+        title: 'Estudiantes',
+        value: '${_stats['total_estudiantes'] ?? 0}',
+        icon: Icons.school,
+        color: AppTheme.estudianteColor,
+        subtitle: '+0 nuevos',
+        onTap: () => Navigator.pushNamed(context, '/admin/usuarios'),
+      ),
+      StatCard(
+        title: 'Docentes',
+        value: '${_stats['total_docentes'] ?? 0}',
+        icon: Icons.person,
+        color: AppTheme.docenteColor,
+        subtitle: '+0 nuevos',
+        onTap: () => Navigator.pushNamed(context, '/admin/usuarios'),
+      ),
+      StatCard(
+        title: 'Recetas',
+        value: '${_stats['total_recetas'] ?? 0}',
+        icon: Icons.restaurant_menu,
+        color: AppTheme.accentColor,
+        subtitle: '+0 esta semana',
+        onTap: () => showInDevelopment('Recetas'),
+      ),
+      StatCard(
+        title: 'Categorías',
+        value: '${_stats['total_categorias'] ?? 0}',
+        icon: Icons.category,
+        color: Colors.purple,
+        subtitle: 'Total activas',
+        onTap: () => showInDevelopment('Categorías'),
+      ),
+    ],
+  );
+}
 
   // ==================== ACCIONES RÁPIDAS ====================
 
@@ -228,17 +231,20 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ==================== FUNCIONES PARA ABRIR DIÁLOGOS ====================
 
-  Future<void> _mostrarDialogoCrearCiclo(BuildContext context) async {
-    await showDialog(
-      context: context,
-      builder: (context) => DialogoCrearEditarCiclo(
-        onGuardar: () {
-          _cargarEstadisticas();
-          _cargarCiclos();
-        },
-      ),
-    );
+Future<void> _mostrarDialogoCrearCiclo(BuildContext context) async {
+  final resultado = await showDialog<bool>(
+    context: context,
+    builder: (context) => DialogoCrearEditarCiclo(
+      onGuardar: () {}, // ✅ VACÍO
+    ),
+  );
+  
+  // ✅ Recarga DESPUÉS de cerrar
+  if (resultado == true && mounted) {
+    await _cargarEstadisticas();
+    await _cargarCiclos();
   }
+}
 
   Future<void> _mostrarDialogoCrearCurso(BuildContext context) async {
     // ✅ FIX: Verificar si _ciclos está vacío o es null de forma segura

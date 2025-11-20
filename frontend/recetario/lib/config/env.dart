@@ -1,29 +1,34 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Env {
-  static String get backendUrl {
-    final baseUrl = dotenv.env['BACKEND_URL'] ?? 'http://localhost:8080';
-
-    // Si estás en Android (emulador físico o virtual)
-    if (!kIsWeb && Platform.isAndroid) {
-      return baseUrl.replaceAll('localhost', '10.0.2.2');
-    }
-
-    // Si estás en Web, iOS o Windows
-    return baseUrl;
-  }
-
+  // Backend
+  static String get backendUrl => dotenv.env['BACKEND_URL'] ?? 'http://localhost:8080';
+  
   // Supabase
   static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
   static String get supabaseKey => dotenv.env['SUPABASE_KEY'] ?? '';
-
-  // Ambientes
-  static bool get isProduction => dotenv.env['ENVIRONMENT'] == 'production';
-  static bool get isDevelopment => !isProduction;
-
-  // Timeouts
-  static Duration get connectionTimeout =>
-      Duration(seconds: int.parse(dotenv.env['CONNECTION_TIMEOUT'] ?? '30'));
+  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  
+  // Gemini AI
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+  
+  // Environment
+  static String get environment => dotenv.env['ENVIRONMENT'] ?? 'development';
+  static int get connectionTimeout => 
+      int.tryParse(dotenv.env['CONNECTION_TIMEOUT'] ?? '30') ?? 30;
+  
+  // Validación
+  static bool get hasGeminiKey => geminiApiKey.isNotEmpty;
+  
+  static void validate() {
+    if (supabaseUrl.isEmpty) {
+      throw Exception('SUPABASE_URL no está configurado en .env');
+    }
+    if (supabaseKey.isEmpty) {
+      throw Exception('SUPABASE_KEY no está configurado en .env');
+    }
+    if (!hasGeminiKey) {
+      print('⚠️ ADVERTENCIA: GEMINI_API_KEY no configurado. Análisis nutricional deshabilitado.');
+    }
+  }
 }

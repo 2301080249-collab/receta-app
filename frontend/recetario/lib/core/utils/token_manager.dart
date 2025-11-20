@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class TokenManager {
   static const String _tokenKey = 'auth_token';
@@ -33,5 +34,19 @@ class TokenManager {
   static Future<String?> getUserData() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_userKey);
+  }
+
+  // ✅ NUEVO: Obtener user_id desde user_data
+  static Future<String?> getUserId() async {
+    try {
+      final userData = await getUserData();
+      if (userData == null) return null;
+
+      final Map<String, dynamic> user = json.decode(userData);
+      return user['id'] as String?;
+    } catch (e) {
+      print('❌ Error obteniendo user_id: $e');
+      return null;
+    }
   }
 }

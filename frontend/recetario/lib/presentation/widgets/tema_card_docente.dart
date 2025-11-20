@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/tema.dart';
 import '../../data/models/curso.dart';
 import '../../data/models/material.dart' as mat;
 import '../../data/models/tarea.dart';
 import '../../data/repositories/material_repository.dart';
-import '../../data/repositories/tema_repository.dart';
 import 'dialogo_crear_material.dart';
 import 'dialogo_crear_tarea.dart';
 import 'dialogo_crear_tema.dart';
@@ -43,6 +45,7 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
       context: context,
       builder: (context) => DialogoCrearMaterial(
         temaId: widget.tema.id,
+        cursoId: widget.cursoId, // ✅ AGREGADO
       ),
     ).then((resultado) {
       if (resultado == true) {
@@ -63,12 +66,11 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
   }
 
   Future<void> _crearTemaReal() async {
-    // ✅ Usar el nuevo diálogo minimalista
     final resultado = await showDialog<bool>(
       context: context,
       builder: (context) => DialogoCrearTema(
         cursoId: widget.cursoId,
-        temaExistente: widget.tema, // Pasar el placeholder para usar su orden
+        temaExistente: widget.tema,
       ),
     );
 
@@ -77,28 +79,74 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
     }
   }
 
+  Future<void> _abrirMaterial(mat.Material material) async {
+    final url = material.urlArchivo;
+    if (url.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El material no tiene URL disponible'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se puede abrir el material'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al abrir material: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final materiales = widget.tema.materiales ?? [];
     final tareas = widget.tema.tareas ?? [];
     final esPlaceholder = widget.tema.id.startsWith('placeholder');
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kIsWeb ? 12 : 10.r),
+      ),
       child: Column(
         children: [
           // Header del tema
           InkWell(
             onTap: () => setState(() => _expandido = !_expandido),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(kIsWeb ? 12 : 10.r),
+            ),
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(kIsWeb ? 16 : (isMobile ? 12.w : 16)),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(kIsWeb ? 12 : 10.r),
                 ),
               ),
               child: Row(
@@ -106,25 +154,26 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
                   Icon(
                     _expandido ? Icons.expand_more : Icons.chevron_right,
                     color: Theme.of(context).primaryColor,
+                    size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: kIsWeb ? 12 : (isMobile ? 8.w : 12)),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Tema ${widget.tema.orden}: ${widget.tema.titulo}',
-                          style: const TextStyle(
-                            fontSize: 18,
+                          style: TextStyle(
+                            fontSize: kIsWeb ? 18 : (isMobile ? 15.sp : 18),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         if (widget.tema.descripcion != null) ...[
-                          const SizedBox(height: 4),
+                          SizedBox(height: kIsWeb ? 4 : 3.h),
                           Text(
                             widget.tema.descripcion!,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: kIsWeb ? 14 : (isMobile ? 12.sp : 14),
                               color: Colors.grey[600],
                             ),
                           ),
@@ -132,12 +181,12 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
                       ],
                     ),
                   ),
-                  // ✅ REEMPLAZADO: PopupMenuButton profesional (solo Editar)
                   if (!esPlaceholder)
                     PopupMenuButton<String>(
                       icon: Icon(
                         Icons.more_vert,
                         color: Colors.grey[700],
+                        size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
                       ),
                       tooltip: 'Opciones del tema',
                       shape: RoundedRectangleBorder(
@@ -172,88 +221,120 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
           if (_expandido) ...[
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(kIsWeb ? 16 : (isMobile ? 12.w : 16)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Materiales
                   if (materiales.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'MATERIALES',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                         fontWeight: FontWeight.bold,
                         color: Colors.grey,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: kIsWeb ? 8 : (isMobile ? 6.h : 8)),
                     ...materiales.map((material) {
-                      return _buildMaterialItemSimple(material);
+                      return _buildMaterialItemSimple(material, isMobile);
                     }).toList(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
                   ],
 
                   // Tareas
                   if (tareas.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'TAREAS',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
                         fontWeight: FontWeight.bold,
                         color: Colors.grey,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: kIsWeb ? 8 : (isMobile ? 6.h : 8)),
                     ...tareas.map((tarea) {
-                      return _buildTareaItemSimple(tarea);
+                      return _buildTareaItemSimple(tarea, isMobile);
                     }).toList(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
                   ],
 
                   // Botones para agregar
                   if (!esPlaceholder) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 150,
-                          child: OutlinedButton.icon(
-                            onPressed: _mostrarDialogoCrearMaterial,
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Material'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              foregroundColor: const Color(0xFF37474F),
-                              side: const BorderSide(color: Color(0xFF37474F)),
-                            ),
+                    isMobile
+                        ? Column(
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _mostrarDialogoCrearMaterial,
+                                  icon: Icon(Icons.add, size: 16.sp),
+                                  label: const Text('Material'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: EdgeInsets.symmetric(vertical: 10.h),
+                                    foregroundColor: const Color(0xFF37474F),
+                                    side: const BorderSide(color: Color(0xFF37474F)),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _mostrarDialogoCrearTarea,
+                                  icon: Icon(Icons.assignment, size: 16.sp),
+                                  label: const Text('Tarea'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: EdgeInsets.symmetric(vertical: 10.h),
+                                    foregroundColor: const Color(0xFF37474F),
+                                    side: const BorderSide(color: Color(0xFF37474F)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 150,
+                                child: OutlinedButton.icon(
+                                  onPressed: _mostrarDialogoCrearMaterial,
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Material'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    foregroundColor: const Color(0xFF37474F),
+                                    side: const BorderSide(color: Color(0xFF37474F)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 150,
+                                child: OutlinedButton.icon(
+                                  onPressed: _mostrarDialogoCrearTarea,
+                                  icon: const Icon(Icons.assignment, size: 18),
+                                  label: const Text('Tarea'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    foregroundColor: const Color(0xFF37474F),
+                                    side: const BorderSide(color: Color(0xFF37474F)),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 150,
-                          child: OutlinedButton.icon(
-                            onPressed: _mostrarDialogoCrearTarea,
-                            icon: const Icon(Icons.assignment, size: 18),
-                            label: const Text('Tarea'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              foregroundColor: const Color(0xFF37474F),
-                              side: const BorderSide(color: Color(0xFF37474F)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ] else ...[
                     Center(
                       child: ElevatedButton.icon(
                         onPressed: _crearTemaReal,
-                        icon: const Icon(Icons.add),
+                        icon: Icon(Icons.add, size: kIsWeb ? 20 : 18.sp),
                         label: const Text('Crear este tema'),
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: kIsWeb ? 24 : (isMobile ? 16.w : 20),
+                            vertical: kIsWeb ? 12 : (isMobile ? 10.h : 12),
                           ),
                         ),
                       ),
@@ -268,47 +349,65 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
     );
   }
 
-  Widget _buildMaterialItemSimple(mat.Material material) {
+  Widget _buildMaterialItemSimple(mat.Material material, bool isMobile) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: kIsWeb ? 8 : (isMobile ? 6.h : 8)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
         border: Border.all(color: Colors.grey[300]!),
       ),
       child: ListTile(
         dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: kIsWeb ? 12 : (isMobile ? 10.w : 12),
+          vertical: kIsWeb ? 4 : (isMobile ? 3.h : 4),
+        ),
         leading: CircleAvatar(
           backgroundColor: Colors.blue[100],
-          radius: 20,
-          child: Icon(Icons.insert_drive_file, color: Colors.blue[700], size: 20),
+          radius: kIsWeb ? 20 : (isMobile ? 18.r : 20),
+          child: Icon(
+            Icons.insert_drive_file,
+            color: Colors.blue[700],
+            size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
+          ),
         ),
         title: Text(
           material.titulo,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
+            fontWeight: FontWeight.w500,
+          ),
         ),
         subtitle: Text(
           material.tipo.toUpperCase(),
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          style: TextStyle(
+            fontSize: kIsWeb ? 11 : (isMobile ? 10.sp : 11),
+            color: Colors.grey[600],
+          ),
         ),
+        onTap: () => _abrirMaterial(material),
         trailing: IconButton(
-          icon: Icon(Icons.more_vert, color: Colors.grey[600], size: 20),
+          icon: Icon(
+            Icons.more_vert,
+            color: Colors.grey[600],
+            size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
+          ),
           onPressed: () => _mostrarMenuMaterial(material),
         ),
       ),
     );
   }
 
-  Widget _buildTareaItemSimple(Tarea tarea) {
+  Widget _buildTareaItemSimple(Tarea tarea, bool isMobile) {
     final totalEntregas = tarea.totalEntregas ?? 0;
     final sinCalificar = tarea.entregasSinCalificar ?? 0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: kIsWeb ? 8 : (isMobile ? 6.h : 8)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
         border: Border.all(
           color: sinCalificar > 0 ? Colors.orange[300]! : Colors.green[300]!,
           width: 1.5,
@@ -316,44 +415,53 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
       ),
       child: ListTile(
         dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: kIsWeb ? 12 : (isMobile ? 10.w : 12),
+          vertical: kIsWeb ? 4 : (isMobile ? 3.h : 4),
+        ),
         leading: CircleAvatar(
           backgroundColor: Colors.pink[100],
-          radius: 20,
+          radius: kIsWeb ? 20 : (isMobile ? 18.r : 20),
           child: Icon(
             Icons.assignment,
             color: Colors.pink[700],
-            size: 24,
+            size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
           ),
         ),
         title: Text(
           tarea.titulo,
-          style: const TextStyle(
-            fontSize: 14,
+          style: TextStyle(
+            fontSize: kIsWeb ? 14 : (isMobile ? 13.sp : 14),
             color: Colors.green,
             fontWeight: FontWeight.w500,
           ),
         ),
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: EdgeInsets.only(top: kIsWeb ? 4 : 3.h),
           child: Row(
             children: [
               Text(
                 'Entregas: $totalEntregas',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: TextStyle(
+                  fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
+                  color: Colors.grey[600],
+                ),
               ),
               if (sinCalificar > 0) ...[
-                const SizedBox(width: 12),
+                SizedBox(width: kIsWeb ? 12 : (isMobile ? 8.w : 12)),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: kIsWeb ? 6 : (isMobile ? 5.w : 6),
+                    vertical: kIsWeb ? 2 : (isMobile ? 2.h : 2),
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.orange[100],
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(kIsWeb ? 4 : 4.r),
                   ),
                   child: Text(
                     'Sin calificar: $sinCalificar',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: kIsWeb ? 11 : (isMobile ? 10.sp : 11),
                       color: Colors.orange[900],
                       fontWeight: FontWeight.w600,
                     ),
@@ -363,7 +471,11 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
             ],
           ),
         ),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey[600]),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: Colors.grey[600],
+          size: kIsWeb ? 24 : (isMobile ? 20.sp : 24),
+        ),
         onTap: () {
           Navigator.push(
             context,
@@ -386,6 +498,14 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: const Icon(Icons.open_in_new, color: Colors.blue),
+              title: const Text('Abrir material'),
+              onTap: () {
+                Navigator.pop(context);
+                _abrirMaterial(material);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.edit),
               title: const Text('Editar material'),
@@ -413,6 +533,7 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
       context: context,
       builder: (context) => DialogoCrearMaterial(
         temaId: widget.tema.id,
+        cursoId: widget.cursoId, // ✅ AGREGADO
         materialExistente: material,
       ),
     ).then((resultado) {
@@ -422,7 +543,6 @@ class _TemaCardDocenteState extends State<TemaCardDocente> {
     });
   }
 
-  // ✅ NUEVA FUNCIÓN: Editar tema
   void _editarTema() {
     showDialog(
       context: context,

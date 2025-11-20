@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 
 // Core
 import '../../../core/theme/app_theme.dart';
@@ -48,8 +49,10 @@ class _CiclosScreenState extends State<CiclosScreen>
     super.dispose();
   }
 
-  Future<void> _cargarCiclos() async {
-    try {
+Future<void> _cargarCiclos() async {
+  try {
+    // ✅ NO uses executeWithLoading si ya hay ciclos cargados
+    if (_ciclos.isEmpty) {
       final ciclos = await executeWithLoading(() async {
         final token = getToken();
         return await _cicloRepository.listarCiclos(token);
@@ -61,10 +64,22 @@ class _CiclosScreenState extends State<CiclosScreen>
           _filtrarCiclos();
         });
       }
-    } catch (e) {
-      showError('Error al cargar ciclos: ${e.toString()}');
+    } else {
+      // ✅ Recarga silenciosa (sin loading screen)
+      final token = getToken();
+      final ciclos = await _cicloRepository.listarCiclos(token);
+
+      if (mounted) {
+        setState(() {
+          _ciclos = ciclos;
+          _filtrarCiclos();
+        });
+      }
     }
+  } catch (e) {
+    showError('Error al cargar ciclos: ${e.toString()}');
   }
+}
 
   void _filtrarCiclos() {
     final query = _searchController.text.toLowerCase().trim();
@@ -113,75 +128,176 @@ class _CiclosScreenState extends State<CiclosScreen>
     }
   }
 
-  void _editarCiclo(Ciclo ciclo) {
-    showDialog(
-      context: context,
-      builder: (context) => DialogoCrearEditarCiclo(
-        ciclo: ciclo,
-        onGuardar: _cargarCiclos,
-      ),
-    );
+void _editarCiclo(Ciclo ciclo) async {
+  final resultado = await showDialog<bool>(
+    context: context,
+    builder: (context) => DialogoCrearEditarCiclo(
+      ciclo: ciclo,
+      onGuardar: () {}, // ✅ VACÍO
+    ),
+  );
+  
+  // ✅ Recarga DESPUÉS de cerrar
+  if (resultado == true && mounted) {
+    await _cargarCiclos();
   }
+}
 
-  Future<void> _eliminarCiclo(Ciclo ciclo) async {
-    final confirmar = await _mostrarConfirmacion(ciclo);
-    if (confirmar != true) return;
 
-    try {
-      await executeWithLoading(() async {
-        final token = getToken();
-        await _cicloRepository.eliminarCiclo(token, ciclo.id);
-      });
-
-      showSuccess('Ciclo eliminado exitosamente');
-      _cargarCiclos();
-    } catch (e) {
-      showError('Error al eliminar: ${e.toString()}');
-    }
-  }
-
-  Future<bool?> _mostrarConfirmacion(Ciclo ciclo) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 28),
-            const SizedBox(width: 12),
-            Text('Confirmar eliminación'),
-          ],
-        ),
-        content: Text(
-          '¿Está seguro de eliminar el ciclo "${ciclo.nombre}"?\n\nEsta acción no se puede deshacer.',
-          style: TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Eliminar'),
+Future<void> _eliminarCiclo(Ciclo ciclo) async {
+  AwesomeDialog(
+    context: context,
+    dialogType: DialogType.warning,
+    animType: AnimType.scale,
+    
+    customHeader: Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: Colors.orange[600],
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-    );
-  }
-
-  void _mostrarDialogoCrearCiclo() {
-    showDialog(
-      context: context,
-      builder: (context) => DialogoCrearEditarCiclo(
-        onGuardar: _cargarCiclos,
+      child: const Icon(
+        Icons.warning_amber_rounded,
+        color: Colors.white,
+        size: 60,
       ),
-    );
+    ),
+    
+    title: 'Confirmar eliminación',
+    desc: '¿Está seguro de eliminar el ciclo "${ciclo.nombre}"?\n\nEsta acción no se puede deshacer.',
+    btnCancelText: 'Cancelar',
+    btnOkText: 'Eliminar',
+    width: MediaQuery.of(context).size.width < 600 ? null : 500,
+    btnCancelOnPress: () {},
+    btnOkOnPress: () async {
+      try {
+        await executeWithLoading(() async {
+          final token = getToken();
+          await _cicloRepository.eliminarCiclo(token, ciclo.id);
+        });
+
+        // ✅ ÉXITO
+        if (mounted) {
+          AwesomeDialog(
+            context: context,
+            dialogType: DialogType.success,
+            animType: AnimType.scale,
+            customHeader: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppTheme.successColor,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.successColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 60,
+              ),
+            ),
+            title: '¡Ciclo Eliminado!',
+            desc: 'El ciclo ha sido eliminado correctamente.',
+            btnOkText: 'Aceptar',
+            width: MediaQuery.of(context).size.width < 600 ? null : 500,
+            btnOkOnPress: () {
+              _cargarCiclos();
+            },
+            btnOkColor: AppTheme.successColor,
+            dismissOnTouchOutside: false,
+            headerAnimationLoop: false,
+          ).show();
+        }
+      } catch (e) {
+        // ❌ ERROR - Detectar si es por tener cursos
+        if (mounted) {
+          final errorMsg = e.toString();
+          final esErrorCursos = errorMsg.contains('cursos') || 
+                                 errorMsg.contains('registrados');
+          
+          AwesomeDialog(
+            context: context,
+            dialogType: esErrorCursos ? DialogType.info : DialogType.error,
+            animType: AnimType.scale,
+            customHeader: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: esErrorCursos 
+                    ? Colors.blue[600] 
+                    : AppTheme.errorColor,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: (esErrorCursos 
+                        ? Colors.blue 
+                        : AppTheme.errorColor).withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                esErrorCursos 
+                    ? Icons.school_rounded 
+                    : Icons.error_rounded,
+                color: Colors.white,
+                size: 60,
+              ),
+            ),
+            title: esErrorCursos 
+                ? 'Ciclo con Cursos' 
+                : 'Error',
+            desc: esErrorCursos
+                ? 'No se puede eliminar este ciclo porque tiene cursos registrados.\n\nPrimero debes eliminar o reasignar los cursos.'
+                : 'No se pudo eliminar el ciclo: ${errorMsg.replaceAll('Exception: ', '')}',
+            btnOkText: 'Entendido',
+            width: MediaQuery.of(context).size.width < 600 ? null : 500,
+            btnOkOnPress: () {},
+            btnOkColor: esErrorCursos 
+                ? Colors.blue[600] 
+                : AppTheme.errorColor,
+            headerAnimationLoop: false,
+          ).show();
+        }
+      }
+    },
+    btnCancelColor: Colors.grey[600],
+    btnOkColor: Color(0xFFEF4444),
+    dismissOnTouchOutside: false,
+    headerAnimationLoop: false,
+  ).show();
+}
+
+  
+
+void _mostrarDialogoCrearCiclo() async {
+  final resultado = await showDialog<bool>(
+    context: context,
+    builder: (context) => DialogoCrearEditarCiclo(
+      onGuardar: () {}, // ✅ VACÍO
+    ),
+  );
+  
+  // ✅ Recarga DESPUÉS de cerrar
+  if (resultado == true && mounted) {
+    await _cargarCiclos();
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +315,6 @@ class _CiclosScreenState extends State<CiclosScreen>
       );
     }
 
-    // 📱 Detectar si es móvil o desktop
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return Stack(
@@ -228,14 +343,13 @@ class _CiclosScreenState extends State<CiclosScreen>
             ],
           ),
         ),
-        // ✅ BOTÓN FLOTANTE PARA MÓVIL (Color del sidebar)
         if (isMobile)
           Positioned(
             right: 16,
             bottom: 16,
             child: FloatingActionButton.extended(
               onPressed: _mostrarDialogoCrearCiclo,
-              backgroundColor: const Color(0xFF475569), // ✅ Color del sidebar
+              backgroundColor: const Color(0xFF475569),
               icon: const Icon(Icons.add_rounded, color: Colors.white),
               label: const Text(
                 'Crear Ciclo',

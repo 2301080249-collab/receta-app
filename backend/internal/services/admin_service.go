@@ -230,6 +230,21 @@ func (s *AdminService) ObtenerUsuarioPorID(userID string) (map[string]interface{
 	return usuario, nil
 }
 
+// 🆕 Obtener usuarios relacionados por curso
+func (s *AdminService) ObtenerUsuariosRelacionadosPorCurso(userID string, rol string) ([]map[string]interface{}, error) {
+	respBody, err := s.usuarioRepo.GetUsuariosRelacionadosPorCurso(userID, rol)
+	if err != nil {
+		return nil, err
+	}
+
+	var usuarios []map[string]interface{}
+	if err := json.Unmarshal(respBody, &usuarios); err != nil {
+		return nil, fmt.Errorf("error al parsear usuarios relacionados")
+	}
+
+	return usuarios, nil
+}
+
 func (s *AdminService) EditarUsuario(userID string, updates map[string]interface{}) error {
 	// Convertir ciclo si viene (puede ser número o romano)
 	if cicloRaw, ok := updates["ciclo"]; ok {

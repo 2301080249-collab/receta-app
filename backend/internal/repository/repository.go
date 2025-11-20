@@ -28,6 +28,9 @@ type UsuarioRepository interface {
 	GetDocenteByUserID(userID string) ([]byte, error)
 	GetEstudianteByUserID(userID string) ([]byte, error)
 	GetAdministradorByUserID(userID string) ([]byte, error)
+
+	// 🆕 AGREGAR ESTE MÉTODO
+	GetUsuariosRelacionadosPorCurso(userID string, userRol string) ([]byte, error)
 }
 
 // ==================== CICLO REPOSITORY ====================
@@ -38,6 +41,7 @@ type CicloRepository interface {
 	GetCicloActivo() ([]byte, error)
 	UpdateCiclo(cicloID string, data map[string]interface{}) error
 	DeleteCiclo(cicloID string) error
+	CicloTieneCursos(cicloID string) (bool, error) // 👈 AGREGAR ESTA LÍNEA
 }
 
 // ==================== CURSO REPOSITORY ====================
@@ -47,9 +51,10 @@ type CursoRepository interface {
 	GetCursoByID(cursoID string) ([]byte, error)
 	GetCursosByCiclo(cicloID string) ([]byte, error)
 	GetCursosByDocente(docenteID string) ([]byte, error)
-	GetCursosByEstudiante(estudianteID string) ([]byte, error) // ✅ AGREGADO
+	GetCursosByEstudiante(estudianteID string) ([]byte, error)
 	UpdateCurso(cursoID string, data map[string]interface{}) error
 	DeleteCurso(cursoID string) error
+	CursoTieneMatriculas(cursoID string) (bool, error) //
 }
 
 // ==================== MATRICULA REPOSITORY ====================

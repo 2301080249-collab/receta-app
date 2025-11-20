@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../data/models/portafolio_item.dart';
+import '../../data/models/portafolio.dart';
 
 /// Card para mostrar una receta en el grid del portafolio
 class RecetaCard extends StatelessWidget {
-  final PortafolioItem item;
+  final Portafolio receta;
   final VoidCallback onTap;
+  final bool mostrarAutor;
 
   const RecetaCard({
     Key? key,
-    required this.item,
+    required this.receta,
     required this.onTap,
+    this.mostrarAutor = false,
   }) : super(key: key);
 
   @override
@@ -30,7 +32,7 @@ class RecetaCard extends StatelessWidget {
             Expanded(
               flex: 3,
               child: Hero(
-                tag: 'receta-${item.receta.id}',
+                tag: 'receta-${receta.id}',
                 child: _buildImagen(),
               ),
             ),
@@ -46,7 +48,7 @@ class RecetaCard extends StatelessWidget {
                   children: [
                     // Título
                     Text(
-                      item.receta.nombre,
+                      receta.titulo,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -57,42 +59,70 @@ class RecetaCard extends StatelessWidget {
 
                     const SizedBox(height: 4),
 
-                    // Categoría
-                    if (item.receta.categoria != null)
+                    // Autor (si se pide mostrar)
+                    if (mostrarAutor && receta.nombreEstudiante != null)
                       Text(
-                        item.receta.categoria!,
+                        'Por ${receta.nombreEstudiante}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           color: Colors.grey[600],
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
 
                     const Spacer(),
 
-                    // Likes y comentarios
+                    // Stats
                     Row(
                       children: [
+                        // Likes
                         Icon(
-                          item.likedByUser ? Icons.favorite : Icons.favorite_border,
+                          Icons.favorite,
                           size: 16,
-                          color: item.likedByUser ? Colors.red : Colors.grey,
+                          color: Colors.red[300],
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${item.likes}',
+                          '${receta.likes}',
                           style: const TextStyle(fontSize: 12),
                         ),
                         const SizedBox(width: 12),
-                        const Icon(
-                          Icons.comment_outlined,
+
+                        // Vistas
+                        Icon(
+                          Icons.visibility,
                           size: 16,
-                          color: Colors.grey,
+                          color: Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${item.comentarios.length}',
+                          '${receta.vistas}',
                           style: const TextStyle(fontSize: 12),
                         ),
+
+                        const Spacer(),
+
+                        // Badge de tipo
+                        if (receta.tipoReceta == 'api')
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[100],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'API',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.blue[800],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -106,7 +136,7 @@ class RecetaCard extends StatelessWidget {
   }
 
   Widget _buildImagen() {
-    if (item.receta.imagenUrl == null || item.receta.imagenUrl!.isEmpty) {
+    if (receta.fotos.isEmpty) {
       return Container(
         color: Colors.grey[300],
         child: const Center(
@@ -120,7 +150,7 @@ class RecetaCard extends StatelessWidget {
     }
 
     return CachedNetworkImage(
-      imageUrl: item.receta.imagenUrl!,
+      imageUrl: receta.fotos.first,
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(
         color: Colors.grey[200],

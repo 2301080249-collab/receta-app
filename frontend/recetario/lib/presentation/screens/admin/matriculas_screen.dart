@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 
 // Core
 import '../../../core/theme/app_theme.dart';
@@ -18,7 +19,6 @@ import '../../../data/services/matricula_service.dart';
 import '../../widgets/dialogo_crear_matricula.dart';
 import '../../widgets/dialogo_matricula_masiva.dart';
 import '../../widgets/dialogo_editar_matricula.dart';
-import '../../widgets/confirm_dialog.dart';
 import '../../widgets/empty_state.dart';
 
 /// Pantalla de gestión de matrículas - DISEÑO UNIFICADO RESPONSIVE
@@ -117,7 +117,41 @@ class _MatriculasScreenState extends State<MatriculasScreen>
 
     if (resultado == true) {
       _cargarDatos();
-      showSuccess('Matrícula creada exitosamente');
+      
+      // ✅ ÉXITO CON AWESOME DIALOG
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        title: '¡Matrícula Creada!',
+        desc: 'La matrícula ha sido creada exitosamente.',
+        btnOkText: 'Aceptar',
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        btnOkOnPress: () {},
+        btnOkColor: AppTheme.successColor,
+        dismissOnTouchOutside: false,
+        headerAnimationLoop: false,
+      ).show();
     }
   }
 
@@ -131,7 +165,41 @@ class _MatriculasScreenState extends State<MatriculasScreen>
 
     if (resultado == true) {
       _cargarDatos();
-      showSuccess('Matrículas creadas exitosamente');
+      
+      // ✅ ÉXITO CON AWESOME DIALOG
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.group_add_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        title: '¡Matrículas Creadas!',
+        desc: 'Las matrículas masivas han sido creadas exitosamente.',
+        btnOkText: 'Aceptar',
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        btnOkOnPress: () {},
+        btnOkColor: AppTheme.successColor,
+        dismissOnTouchOutside: false,
+        headerAnimationLoop: false,
+      ).show();
     }
   }
 
@@ -146,40 +214,171 @@ class _MatriculasScreenState extends State<MatriculasScreen>
 
     if (resultado == true) {
       _cargarDatos();
-      showSuccess('Matrícula actualizada exitosamente');
+      
+      // ✅ ÉXITO CON AWESOME DIALOG
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        title: '¡Matrícula Actualizada!',
+        desc: 'La matrícula ha sido actualizada correctamente.',
+        btnOkText: 'Aceptar',
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        btnOkOnPress: () {},
+        btnOkColor: AppTheme.successColor,
+        dismissOnTouchOutside: false,
+        headerAnimationLoop: false,
+      ).show();
     }
   }
 
   // ==================== ELIMINAR MATRÍCULA ====================
 
   Future<void> _eliminarMatricula(Matricula matricula) async {
-    showDialog(
+    AwesomeDialog(
       context: context,
-      builder: (context) => ConfirmDialog(
-        title: '¿Eliminar matrícula?',
-        message:
-            '¿Está seguro de eliminar la matrícula de ${matricula.nombreEstudiante ?? "este estudiante"}?',
-        warningMessage: 'Esta acción no se puede deshacer',
-        confirmText: 'Eliminar',
-        cancelText: 'Cancelar',
-        onConfirm: () async {
-          try {
-            await executeWithLoading(() async {
-              final token = getToken();
-              await MatriculaService.eliminarMatricula(
-                token: token,
-                matriculaId: matricula.id,
-              );
-            });
-
-            showSuccess('Matrícula eliminada exitosamente');
-            _cargarDatos();
-          } catch (e) {
-            showError('Error al eliminar: $e');
-          }
-        },
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      
+      // 🎨 ÍCONO NARANJA DE ADVERTENCIA
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.orange[600],
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
       ),
-    );
+      
+      title: '¿Eliminar matrícula?',
+      desc: '¿Está seguro de eliminar la matrícula de ${matricula.nombreEstudiante ?? "este estudiante"}?\n\nEsta acción no se puede deshacer.',
+      btnCancelText: 'Cancelar',
+      btnOkText: 'Eliminar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnCancelOnPress: () {},
+      btnOkOnPress: () async {
+        try {
+          await executeWithLoading(() async {
+            final token = getToken();
+            await MatriculaService.eliminarMatricula(
+              token: token,
+              matriculaId: matricula.id,
+            );
+          });
+
+          // ✅ ÉXITO
+          if (mounted) {
+            AwesomeDialog(
+              context: context,
+              dialogType: DialogType.success,
+              animType: AnimType.scale,
+              customHeader: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.successColor.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 60,
+                ),
+              ),
+              title: '¡Matrícula Eliminada!',
+              desc: 'La matrícula ha sido eliminada correctamente.',
+              btnOkText: 'Aceptar',
+              width: MediaQuery.of(context).size.width < 600 ? null : 500,
+              btnOkOnPress: () {
+                _cargarDatos();
+              },
+              btnOkColor: AppTheme.successColor,
+              dismissOnTouchOutside: false,
+              headerAnimationLoop: false,
+            ).show();
+          }
+        } catch (e) {
+          // ❌ ERROR
+          if (mounted) {
+            AwesomeDialog(
+              context: context,
+              dialogType: DialogType.error,
+              animType: AnimType.scale,
+              customHeader: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppTheme.errorColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.errorColor.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.error_rounded,
+                  color: Colors.white,
+                  size: 60,
+                ),
+              ),
+              title: 'Error',
+              desc: 'No se pudo eliminar la matrícula: ${e.toString()}',
+              btnOkText: 'Cerrar',
+              width: MediaQuery.of(context).size.width < 600 ? null : 500,
+              btnOkOnPress: () {},
+              btnOkColor: AppTheme.errorColor,
+              headerAnimationLoop: false,
+            ).show();
+          }
+        }
+      },
+      btnCancelColor: Colors.grey[600],
+      btnOkColor: Color(0xFFEF4444),
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
   }
 
   // ==================== UI - BUILD PRINCIPAL ====================
@@ -220,8 +419,8 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             child: _matriculasFiltradas.isEmpty
                 ? _buildNoResults()
                 : isMobile
-                    ? _buildListaMovil()      // 📱 Lista vertical para móvil
-                    : _buildTablaWeb(),       // 💻 Tabla para web
+                    ? _buildListaMovil()
+                    : _buildTablaWeb(),
           ),
         ],
       ),
@@ -240,7 +439,7 @@ class _MatriculasScreenState extends State<MatriculasScreen>
               Container(
                 padding: EdgeInsets.all(isMobile ? 10 : 12),
                 decoration: BoxDecoration(
-                  color: Color(0xFF334155), // Azul oscuro del sidebar
+                  color: Color(0xFF334155),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
@@ -294,7 +493,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
   Widget _buildBotonesAccion(bool isMobile) {
     return Row(
       children: [
-        // Botón Matrícula Masiva
         ElevatedButton.icon(
           onPressed: _mostrarDialogoMatriculaMasiva,
           icon: Icon(Icons.group_add_rounded, size: isMobile ? 18 : 20),
@@ -306,7 +504,7 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             ),
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFF334155), // ✅ Azul oscuro
+            backgroundColor: Color(0xFF334155),
             foregroundColor: Colors.white,
             elevation: 0,
             padding: EdgeInsets.symmetric(
@@ -319,7 +517,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
           ),
         ),
         const SizedBox(width: 12),
-        // Botón Crear Matrícula
         ElevatedButton.icon(
           onPressed: _mostrarDialogoCrearMatricula,
           icon: Icon(Icons.add_rounded, size: isMobile ? 18 : 20),
@@ -331,7 +528,7 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             ),
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFF334155), // ✅ Azul oscuro
+            backgroundColor: Color(0xFF334155),
             foregroundColor: Colors.white,
             elevation: 0,
             padding: EdgeInsets.symmetric(
@@ -353,7 +550,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
     if (isMobile) {
       return Column(
         children: [
-          // Búsqueda
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
@@ -375,10 +571,8 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             ),
           ),
           const SizedBox(height: 12),
-          // Filtros
           Row(
             children: [
-              // Filtro por Ciclo
               Expanded(
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 12),
@@ -395,8 +589,7 @@ class _MatriculasScreenState extends State<MatriculasScreen>
                           Icon(Icons.calendar_today_rounded,
                               size: 16, color: Colors.grey[600]),
                           SizedBox(width: 8),
-                          Text('Ciclo',
-                              style: TextStyle(fontSize: 13)),
+                          Text('Ciclo', style: TextStyle(fontSize: 13)),
                         ],
                       ),
                       isExpanded: true,
@@ -422,7 +615,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
                 ),
               ),
               const SizedBox(width: 12),
-              // Filtro por Estado
               Expanded(
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 12),
@@ -475,13 +667,11 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             ],
           ),
           const SizedBox(height: 12),
-          // Botones de acción en móvil
           _buildBotonesAccion(isMobile),
         ],
       );
     }
 
-    // Filtros para WEB
     return Row(
       children: [
         Expanded(
@@ -618,7 +808,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Fila 1: Avatar + Nombre del Estudiante
             Row(
               children: [
                 CircleAvatar(
@@ -664,7 +853,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             Divider(height: 1, color: Colors.grey[200]),
             const SizedBox(height: 16),
 
-            // Fila 2: Curso
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -719,7 +907,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
 
             const SizedBox(height: 16),
 
-            // Fila 3: Ciclo Académico
             Row(
               children: [
                 Icon(Icons.calendar_today_rounded,
@@ -755,11 +942,9 @@ class _MatriculasScreenState extends State<MatriculasScreen>
             Divider(height: 1, color: Colors.grey[200]),
             const SizedBox(height: 16),
 
-            // Fila 4: Estado + Acciones
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Estado
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -800,10 +985,8 @@ class _MatriculasScreenState extends State<MatriculasScreen>
                   ],
                 ),
                 
-                // Botones de acción
                 Row(
                   children: [
-                    // Botón Editar
                     Container(
                       decoration: BoxDecoration(
                         color: Color(0xFF3B82F6).withOpacity(0.1),
@@ -818,7 +1001,6 @@ class _MatriculasScreenState extends State<MatriculasScreen>
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Botón Eliminar
                     Container(
                       decoration: BoxDecoration(
                         color: Color(0xFFDC2626).withOpacity(0.1),
@@ -1180,11 +1362,11 @@ class _MatriculasScreenState extends State<MatriculasScreen>
   Color _getEstadoColor(String estado) {
     switch (estado) {
       case 'activo':
-        return AppTheme.successColor; // Verde
+        return AppTheme.successColor;
       case 'retirado':
-        return AppTheme.warningColor; // Naranja/Amarillo
+        return AppTheme.warningColor;
       case 'completado':
-        return AppTheme.infoColor; // Azul
+        return AppTheme.infoColor;
       default:
         return Colors.grey[600]!;
     }

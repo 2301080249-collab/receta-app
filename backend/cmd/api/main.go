@@ -41,20 +41,27 @@ func main() {
 
 	// ==================== DEPENDENCY INJECTION ====================
 
-	// 1. Inicializar cliente Supabase
+	// 1. Inicializar cliente Supabase REST API
 	supabaseClient := repository.NewSupabaseClient()
-	// 2. Repositories
+
+	// 2. Inicializar Portafolio Repository con REST API (SIN SQL)
+	portafolioRepo := repository.NewPortafolioRepository(supabaseClient)
+	categoriaRepo := repository.NewCategoriaRepository(supabaseClient)
+	log.Println("✅ Repositorios inicializados con REST API")
+
+	// 3. Repositories
 	authRepo := repository.NewAuthRepository(supabaseClient)
 	usuarioRepo := repository.NewUsuarioRepository(supabaseClient)
 	cicloRepo := repository.NewCicloRepository(supabaseClient)
 	cursoRepo := repository.NewCursoRepository(supabaseClient)
 	matriculaRepo := repository.NewMatriculaRepository(supabaseClient)
 	temaRepo := repository.NewTemaRepository(supabaseClient)
-	materialRepo := repository.NewMaterialRepository(supabaseClient) // ✅ NUEVO
-	tareaRepo := repository.NewTareaRepository(supabaseClient)       // ✅ NUEVO
-	entregaRepo := repository.NewEntregaRepository(supabaseClient)   // ✅ NUEVO
+	materialRepo := repository.NewMaterialRepository(supabaseClient)
+	tareaRepo := repository.NewTareaRepository(supabaseClient)
+	entregaRepo := repository.NewEntregaRepository(supabaseClient)
+	notificationRepo := repository.NewNotificationRepository(supabaseClient) // ✅ NUEVO
 
-	// 3. Services
+	// 4. Services
 	authService := services.NewAuthService(authRepo, usuarioRepo)
 	adminService := services.NewAdminService(authRepo, usuarioRepo)
 	cicloService := services.NewCicloService(cicloRepo)
@@ -67,22 +74,43 @@ func main() {
 		config.AppConfig.SupabaseStorageURL,
 		config.AppConfig.SupabaseServiceKey,
 		"archivos", // nombre del bucket
-	) // ✅ NUEVO
+	)
 
-	materialService := services.NewMaterialService(materialRepo, storageService)         // ✅ NUEVO
-	tareaService := services.NewTareaService(tareaRepo, entregaRepo)                     // ✅ NUEVO
-	entregaService := services.NewEntregaService(entregaRepo, tareaRepo, storageService) // ✅ NUEVO
+	// ✅ NUEVO: Firebase Service
+	firebaseService, err := services.NewFirebaseService()
+	if err != nil {
+		log.Printf("⚠️ Firebase no disponible: %v", err)
+	}
 
-	// 4. Handlers
+	// ✅ NUEVO: Notification Service
+	notificationService := services.NewNotificationService(
+		notificationRepo,
+		firebaseService,
+		usuarioRepo,
+		portafolioRepo,
+	)
+
+	materialService := services.NewMaterialService(materialRepo, storageService)
+	tareaService := services.NewTareaService(tareaRepo, entregaRepo)
+	entregaService := services.NewEntregaService(entregaRepo, tareaRepo, storageService)
+	categoriaService := services.NewCategoriaService(categoriaRepo)
+	portafolioService := services.NewPortafolioService(portafolioRepo, storageService)
+
+	// 5. Handlers
 	authHandler := handlers.NewAuthHandler(authService)
 	adminHandler := handlers.NewAdminHandler(adminService)
 	cicloHandler := handlers.NewCicloHandler(cicloService)
 	cursoHandler := handlers.NewCursoHandler(cursoService)
 	matriculaHandler := handlers.NewMatriculaHandler(matriculaService)
 	temaHandler := handlers.NewTemaHandler(temaService)
-	materialHandler := handlers.NewMaterialHandler(materialService, storageService)            // ✅ NUEVO
-	tareaHandler := handlers.NewTareaHandler(tareaService, entregaService)                     // ✅ CORRECTO                                  // ✅ NUEVO
-	entregaHandler := handlers.NewEntregaHandler(entregaService, tareaService, storageService) // ✅ NUEVO
+	materialHandler := handlers.NewMaterialHandler(materialService, storageService)
+	tareaHandler := handlers.NewTareaHandler(tareaService, entregaService)
+	entregaHandler := handlers.NewEntregaHandler(entregaService, tareaService, storageService)
+	categoriaHandler := handlers.NewCategoriaHandler(categoriaService)
+	portafolioHandler := handlers.NewPortafolioHandler(portafolioService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService) // ✅ NUEVO
+	usuarioHandler := handlers.NewUsuarioHandler(adminService, notificationService)
+	// ✅ NUEVO
 
 	// ==================== FIBER SETUP ====================
 
@@ -99,7 +127,7 @@ func main() {
 	}))
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, ngrok-skip-browser-warning, User-Agent", // ✅ AGREGADOS
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
 	}))
 
@@ -112,7 +140,7 @@ func main() {
 		})
 	})
 
-	// Configurar rutas - ✅ ACTUALIZADO
+	// Configurar rutas
 	routes.SetupRoutes(
 		app,
 		authHandler,
@@ -121,9 +149,13 @@ func main() {
 		cursoHandler,
 		matriculaHandler,
 		temaHandler,
-		materialHandler, // ✅ NUEVO
-		tareaHandler,    // ✅ NUEVO
-		entregaHandler,  // ✅ NUEVO
+		materialHandler,
+		tareaHandler,
+		entregaHandler,
+		categoriaHandler,
+		portafolioHandler,
+		notificationHandler, // ✅ NUEVO
+		usuarioHandler,      // ✅ NUEVO
 	)
 
 	// Graceful shutdown
@@ -139,7 +171,7 @@ func main() {
 	port := config.AppConfig.Port
 	log.Printf("🚀 Servidor corriendo en http://localhost:%s", port)
 
-	if err := app.Listen(":" + port); err != nil {
+	if err := app.Listen("0.0.0.0:" + port); err != nil {
 		log.Fatal("❌ Error al iniciar servidor:", err)
 	}
 }

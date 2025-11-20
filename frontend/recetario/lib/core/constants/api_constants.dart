@@ -59,13 +59,28 @@ class ApiConstants {
   static const String estadisticas = '$admin/estadisticas';
   static const String dashboardStats = '$admin/dashboard/stats';
 
-  // ==================== RECETAS (FUTURO) ====================
-  static const String recetas = '/recetas';
-  static const String crearReceta = '/recetas';
-  static const String listarRecetas = '/recetas';
+  // ==================== ✅ PORTAFOLIO ====================
+  static const String portafolio = '/api/portafolio';
+  static const String crearPortafolio = '/api/portafolio';
+  static const String misRecetas = '/api/portafolio/mis-recetas';
+  static const String recetasPublicas = '/api/portafolio/publicas';
+  
+  // Detalle de receta
+  static String portafolioDetalle(String id) => '/api/portafolio/$id';
+  static String actualizarPortafolio(String id) => '/api/portafolio/$id'; // ⬅️ ✨ NUEVO
+  static String eliminarPortafolio(String id) => '/api/portafolio/$id';
+  
+  // Likes
+  static String toggleLike(String id) => '/api/portafolio/$id/like';
+  static String yaDioLike(String id) => '/api/portafolio/$id/ya-dio-like';
+  
+  // Comentarios  
+  static String crearComentario(String id) => '/api/portafolio/$id/comentarios';
+  static String obtenerComentarios(String id) => '/api/portafolio/$id/comentarios';
 
-  // ==================== CATEGORÍAS (FUTURO) ====================
-  static const String categorias = '/categorias';
+  // ==================== ✅ CATEGORÍAS ====================
+  static const String categorias = '/api/categorias';
+  static String categoriaDetalle(String id) => '/api/categorias/$id';
 
   // ==================== HEADERS ====================
 

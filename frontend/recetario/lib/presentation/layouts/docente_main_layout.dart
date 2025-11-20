@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+// ✅ Import condicional para dart:html (solo web)
+// ignore: avoid_web_libraries_in_flutter
+import 'package:universal_html/html.dart' as html;
 import '../screens/docente/home_docente_screen.dart';
 import '../screens/shared/portafolio_screen.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../config/routes.dart';
 import 'package:provider/provider.dart';
+import '../widgets/notification_bell.dart';
 
 /// Layout principal del docente que mantiene el estado de las tabs
 class DocenteMainLayout extends StatefulWidget {
@@ -26,11 +33,31 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
     _currentIndex = widget.initialIndex;
   }
 
+  // ✅ MODIFICADO: Actualizar URL al cambiar de tab
   void _onTabSelected(int index) {
     if (_currentIndex != index) {
       setState(() {
         _currentIndex = index;
       });
+      
+      // ✅ NUEVO: Actualizar URL en web sin recargar
+      if (kIsWeb) {
+        _updateUrl(index);
+      }
+    }
+  }
+
+  // ✅ NUEVO: Método para actualizar la URL
+  void _updateUrl(int index) {
+    try {
+      final newUrl = index == 1 
+          ? '/docente/home?tab=1' 
+          : '/docente/home'; // Tab 0 (Portafolio) sin parámetro
+      
+      html.window.history.pushState(null, '', newUrl);
+    } catch (e) {
+      // Ignorar errores en plataformas no-web
+      print('⚠️ Error actualizando URL: $e');
     }
   }
 
@@ -40,17 +67,13 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
       backgroundColor: Colors.grey[100],
       body: Column(
         children: [
-          // Header personalizado con tabs RESPONSIVE
           _buildCustomHeader(),
           
-          // Contenido - IndexedStack mantiene el estado de ambas pantallas
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
               children: const [
-                // Tab 0: Portafolio
                 PortafolioScreen(),
-                // Tab 1: Cursos
                 HomeDocenteScreen(showHeader: false),
               ],
             ),
@@ -62,14 +85,19 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
 
   Widget _buildCustomHeader() {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
-    // Obtener inicial según el rol
+    // Obtener nombre e inicial
     String userInitial = 'D';
-    if (userProvider.docente != null) {
-      userInitial = 'D'; // D de Docente
+    String userName = 'Usuario';
+    String userRole = 'docente';
+    
+    if (authProvider.currentUser != null) {
+      userName = authProvider.currentUser!.nombreCompleto;
+      userInitial = userName.isNotEmpty ? userName[0].toUpperCase() : 'D';
+      userRole = authProvider.currentUser!.rol;
     }
     
-    // ✅ RESPONSIVE: Detectar tamaño de pantalla
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     
@@ -93,7 +121,7 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
           ),
           child: Row(
             children: [
-              // Logo - MÁS PEQUEÑO EN MÓVIL
+              // Logo
               Container(
                 width: isMobile ? 40 : 55,
                 height: isMobile ? 40 : 55,
@@ -133,9 +161,7 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
               
               SizedBox(width: isMobile ? 8 : 12),
               
-              // Texto - ADAPTADO PARA MÓVIL
               if (isMobile)
-                // Versión móvil: Texto más corto
                 const Expanded(
                   child: Text(
                     'CFT Cañete',
@@ -148,7 +174,6 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
                   ),
                 )
               else
-                // Versión desktop: Texto completo
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -176,9 +201,7 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
               
               const Spacer(),
               
-              // Tabs - ADAPTADAS PARA MÓVIL
               if (isMobile)
-                // Versión móvil: Solo iconos
                 Row(
                   children: [
                     IconButton(
@@ -217,7 +240,6 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
                   ],
                 )
               else
-                // Versión desktop: Tabs con texto
                 Row(
                   children: [
                     TextButton(
@@ -269,45 +291,192 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
               
               SizedBox(width: isMobile ? 4 : 16),
               
-              // Notificaciones
-              IconButton(
-                icon: Icon(
-                  Icons.notifications_outlined,
-                  size: isMobile ? 20 : 20,
-                ),
-                onPressed: () {
-                  // TODO: Ir a notificaciones
-                },
-                tooltip: 'Notificaciones',
-                color: Colors.grey[700],
-                padding: EdgeInsets.all(isMobile ? 4 : 8),
-              ),
+              const NotificationBell(),
               
               SizedBox(width: isMobile ? 4 : 8),
               
-              // Avatar
-              Container(
-                width: isMobile ? 28 : 32,
-                height: isMobile ? 28 : 32,
-                decoration: BoxDecoration(
-                  color: Colors.purple[700],
-                  shape: BoxShape.circle,
+              // ✅ Avatar con menú desplegable
+              PopupMenuButton<String>(
+                offset: const Offset(0, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Center(
-                  child: Text(
-                    userInitial,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 12 : 14,
+                color: Colors.white,
+                elevation: 8,
+                padding: EdgeInsets.zero,
+                child: Container(
+                  width: isMobile ? 28 : 32,
+                  height: isMobile ? 28 : 32,
+                  decoration: BoxDecoration(
+                    color: Colors.purple[700],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      userInitial,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile ? 12 : 14,
+                      ),
                     ),
                   ),
                 ),
+                itemBuilder: (context) => [
+                  PopupMenuItem<String>(
+                    enabled: false,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          userName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        // ✅ Mostrar código del usuario
+                        Consumer<UserProvider>(
+                          builder: (context, userProv, _) {
+                            String? codigo;
+                            if (userProv.estudiante != null) {
+                              codigo = userProv.estudiante!.codigoEstudiante;
+                            } else if (userProv.docente != null) {
+                              codigo = userProv.docente!.codigoDocente;
+                            } else if (userProv.administrador != null) {
+                              codigo = userProv.administrador!.codigoAdmin;
+                            }
+                            
+                            if (codigo != null && codigo.isNotEmpty) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  codigo,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                        Text(
+                          userRole.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Divider(height: 1, thickness: 1, color: Colors.grey[300]),
+                      ],
+                    ),
+                  ),
+                  
+                  PopupMenuItem<String>(
+                    value: 'logout',
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.logout,
+                          size: 20,
+                          color: Colors.red[700],
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Cerrar sesión',
+                          style: TextStyle(
+                            color: Colors.red[700],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    _cerrarSesion();
+                  }
+                },
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _cerrarSesion() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.logout, color: Colors.orange, size: 24),
+            SizedBox(width: 12),
+            Text('Cerrar sesión'),
+          ],
+        ),
+        content: const Text(
+          '¿Estás seguro de que deseas cerrar sesión?',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.logout();
+
+      if (mounted) {
+        Navigator.pop(context);
+        
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.login,
+          (route) => false,
+        );
+      }
+    }
   }
 }

@@ -16,4 +16,3 @@ type Estudiante struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// EstudianteInfo es un modelo simplificado para relaciones

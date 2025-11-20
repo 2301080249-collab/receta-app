@@ -1,3 +1,4 @@
+import 'dart:convert'; // 👈 ASEGÚRATE DE TENER ESTE IMPORT
 import 'api_service.dart';
 import '../../core/constants/api_constants.dart';
 import '../models/ciclo.dart';
@@ -81,6 +82,13 @@ class CicloService {
       '${ApiConstants.listarCiclos}/$cicloId',
       headers: ApiConstants.headersWithAuth(token),
     );
+
+    // ✅ VALIDACIÓN: Capturar error 400 (ciclo con cursos)
+    if (response.statusCode == 400) {
+      final data = json.decode(response.body);
+      final errorMessage = data['error'] ?? 'No se puede eliminar este ciclo';
+      throw Exception(errorMessage);
+    }
 
     ApiService.handleResponse(response);
   }

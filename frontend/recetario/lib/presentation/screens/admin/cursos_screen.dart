@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 
 // Core
 import '../../../core/theme/app_theme.dart';
@@ -110,20 +111,133 @@ class _CursosScreenState extends State<CursosScreen>
   }
 
   Future<void> _eliminarCurso(Curso curso) async {
-    final confirmar = await _mostrarConfirmacion(curso);
-    if (confirmar != true) return;
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      
+      // 🎨 ÍCONO PERSONALIZADO - ADVERTENCIA NARANJA
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.orange[600],
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      
+      title: 'Confirmar eliminación',
+      desc: '¿Está seguro de eliminar el curso "${curso.nombre}"?\n\nEsta acción no se puede deshacer.',
+      btnCancelText: 'Cancelar',
+      btnOkText: 'Eliminar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnCancelOnPress: () {},
+      btnOkOnPress: () async {
+        try {
+          await executeWithLoading(() async {
+            final token = getToken();
+            await _cursoRepository.eliminarCurso(token, curso.id);
+          });
 
-    try {
-      await executeWithLoading(() async {
-        final token = getToken();
-        await _cursoRepository.eliminarCurso(token, curso.id);
-      });
-
-      showSuccess('Curso eliminado exitosamente');
-      _cargarDatos();
-    } catch (e) {
-      showError('Error al eliminar: ${e.toString()}');
-    }
+          // ✅ ÉXITO - VERDE
+          if (mounted) {
+            AwesomeDialog(
+              context: context,
+              dialogType: DialogType.success,
+              animType: AnimType.scale,
+              
+              // 🎨 ÍCONO VERDE DE ÉXITO
+              customHeader: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.successColor.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 60,
+                ),
+              ),
+              
+              title: '¡Curso Eliminado!',
+              desc: 'El curso ha sido eliminado correctamente.',
+              btnOkText: 'Aceptar',
+              width: MediaQuery.of(context).size.width < 600 ? null : 500,
+              btnOkOnPress: () {
+                _cargarDatos();
+              },
+              btnOkColor: AppTheme.successColor,
+              dismissOnTouchOutside: false,
+              headerAnimationLoop: false,
+            ).show();
+          }
+        } catch (e) {
+          // ❌ ERROR - ROJO
+          if (mounted) {
+            AwesomeDialog(
+              context: context,
+              dialogType: DialogType.error,
+              animType: AnimType.scale,
+              
+              // 🎨 ÍCONO ROJO DE ERROR
+              customHeader: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppTheme.errorColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.errorColor.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.error_rounded,
+                  color: Colors.white,
+                  size: 60,
+                ),
+              ),
+              
+              title: 'Error',
+              desc: 'No se pudo eliminar el curso: ${e.toString()}',
+              btnOkText: 'Cerrar',
+              width: MediaQuery.of(context).size.width < 600 ? null : 500,
+              btnOkOnPress: () {},
+              btnOkColor: AppTheme.errorColor,
+              headerAnimationLoop: false,
+            ).show();
+          }
+        }
+      },
+      btnCancelColor: Colors.grey[600],
+      btnOkColor: Color(0xFFEF4444),
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
   }
 
   Future<void> _activarDesactivarCurso(Curso curso) async {
@@ -145,40 +259,6 @@ class _CursosScreenState extends State<CursosScreen>
     }
   }
 
-  Future<bool?> _mostrarConfirmacion(Curso curso) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 28),
-            const SizedBox(width: 12),
-            Text('Confirmar eliminación'),
-          ],
-        ),
-        content: Text(
-          '¿Está seguro de eliminar el curso "${curso.nombre}"?\n\nEsta acción no se puede deshacer.',
-          style: TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _mostrarDialogoCrearCurso() {
     showDialog(
       context: context,
@@ -189,14 +269,13 @@ class _CursosScreenState extends State<CursosScreen>
     );
   }
 
-  // ✅ NUEVO: Método para editar curso
   void _editarCurso(Curso curso) {
     showDialog(
       context: context,
       builder: (context) => DialogoCrearCurso(
         ciclos: _ciclos,
         onGuardar: _cargarDatos,
-        curso: curso, // ✅ Pasar el curso a editar
+        curso: curso,
       ),
     );
   }
@@ -217,7 +296,6 @@ class _CursosScreenState extends State<CursosScreen>
       );
     }
 
-    // 📱 Detectar si es móvil o desktop
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return Stack(
@@ -246,7 +324,6 @@ class _CursosScreenState extends State<CursosScreen>
             ],
           ),
         ),
-        // ✅ BOTÓN FLOTANTE PARA MÓVIL
         if (isMobile)
           Positioned(
             bottom: 16,
@@ -262,7 +339,6 @@ class _CursosScreenState extends State<CursosScreen>
     );
   }
 
-  // ✅ HEADER SIN BOTÓN EN MÓVIL (ya que está flotante abajo)
   Widget _buildHeader(bool isMobile) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -270,11 +346,10 @@ class _CursosScreenState extends State<CursosScreen>
         Expanded(
           child: Row(
             children: [
-              // ✅ CAMBIO: Ícono con color del sidebar
               Container(
                 padding: EdgeInsets.all(isMobile ? 10 : 12),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryColor, // ✅ Color del sidebar (azul)
+                  color: AppTheme.primaryColor,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
@@ -309,7 +384,6 @@ class _CursosScreenState extends State<CursosScreen>
             ],
           ),
         ),
-        // 🖥️ Botones solo en desktop
         if (!isMobile) ...[
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: AppTheme.primaryColor),
@@ -339,12 +413,10 @@ class _CursosScreenState extends State<CursosScreen>
     );
   }
 
-  // ✅ BARRA DE FILTROS
   Widget _buildFiltersBar(bool isMobile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Búsqueda
         TextField(
           controller: _searchController,
           decoration: InputDecoration(
@@ -376,7 +448,6 @@ class _CursosScreenState extends State<CursosScreen>
         ),
         SizedBox(height: isMobile ? 12 : 16),
         
-        // Filtros
         Row(
           children: [
             if (!isMobile)
@@ -478,11 +549,9 @@ class _CursosScreenState extends State<CursosScreen>
     );
   }
 
-  // ✅ CAMBIO PRINCIPAL: Filtros con colores dinámicos
   Widget _buildFilterChip(String label, String value) {
     final isSelected = _filtroEstado == value;
     
-    // ✅ Definir colores según el estado
     Color chipColor;
     Color borderColor;
     Color textColor;
@@ -490,17 +559,17 @@ class _CursosScreenState extends State<CursosScreen>
     if (isSelected) {
       switch (value) {
         case 'todos':
-  chipColor = Color(0xFF475569).withOpacity(0.15); // ✅ Gris igual que ciclos
-  borderColor = Color(0xFF475569);
-  textColor = Color(0xFF475569);
+          chipColor = Color(0xFF475569).withOpacity(0.15);
+          borderColor = Color(0xFF475569);
+          textColor = Color(0xFF475569);
           break;
         case 'activos':
-          chipColor = Color(0xFF10B981).withOpacity(0.15); // Verde
+          chipColor = Color(0xFF10B981).withOpacity(0.15);
           borderColor = Color(0xFF10B981);
           textColor = Color(0xFF10B981);
           break;
         case 'inactivos':
-          chipColor = Color(0xFFEF4444).withOpacity(0.15); // Rojo
+          chipColor = Color(0xFFEF4444).withOpacity(0.15);
           borderColor = Color(0xFFEF4444);
           textColor = Color(0xFFEF4444);
           break;
@@ -556,7 +625,7 @@ class _CursosScreenState extends State<CursosScreen>
           return CursoCardMobile(
             curso: curso,
             onActivar: () => _activarDesactivarCurso(curso),
-            onEditar: () => _editarCurso(curso), // ✅ CAMBIO
+            onEditar: () => _editarCurso(curso),
             onEliminar: () => _eliminarCurso(curso),
           );
         },
@@ -581,7 +650,7 @@ class _CursosScreenState extends State<CursosScreen>
           return CursoCardDesktop(
             curso: curso,
             onActivar: () => _activarDesactivarCurso(curso),
-            onEditar: () => _editarCurso(curso), // ✅ CAMBIO
+            onEditar: () => _editarCurso(curso),
             onEliminar: () => _eliminarCurso(curso),
           );
         },
