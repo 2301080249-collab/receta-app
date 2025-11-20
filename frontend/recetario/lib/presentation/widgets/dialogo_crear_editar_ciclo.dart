@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/ciclo_repository.dart';
@@ -95,10 +96,42 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
+    
     if (_fechaInicio == null || _fechaFin == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Seleccione las fechas')),
-      );
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.info,
+        animType: AnimType.scale,
+        
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.formColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.formColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.info_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        
+        title: 'Fechas requeridas',
+        desc: 'Por favor, seleccione las fechas de inicio y fin del ciclo.',
+        btnOkText: 'Entendido',
+        btnOkColor: AppTheme.formColor,
+        btnOkOnPress: () {},
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        headerAnimationLoop: false,
+      ).show();
       return;
     }
 
@@ -130,33 +163,91 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
 
       if (!mounted) return;
 
-      Navigator.pop(context);
-      widget.onGuardar();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _esEdicion
-                ? 'Ciclo actualizado exitosamente'
-                : 'Ciclo creado exitosamente',
+      // ✅ Muestra el éxito
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          backgroundColor: AppTheme.successColor,
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
         ),
-      );
+        
+        title: _esEdicion ? '¡Ciclo Actualizado!' : '¡Ciclo Creado!',
+        desc: _esEdicion
+            ? 'El ciclo "${_nombreController.text.trim()}" ha sido actualizado correctamente.'
+            : 'El ciclo "${_nombreController.text.trim()}" ha sido creado exitosamente.',
+        btnOkText: 'Aceptar',
+        btnOkColor: AppTheme.successColor,
+        dismissOnTouchOutside: false,
+   btnOkOnPress: () {
+  Navigator.of(context).pop(true);
+},
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        headerAnimationLoop: false,
+      ).show();
+      
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      
+      if (mounted) {
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.error,
+          animType: AnimType.scale,
+          
+          customHeader: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.errorColor.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.error_rounded,
+              color: Colors.white,
+              size: 60,
+            ),
+          ),
+          
+          title: 'Error',
+          desc: e.toString().replaceAll('Exception: ', ''),
+          btnOkText: 'Entendido',
+          btnOkColor: AppTheme.errorColor,
+          btnOkOnPress: () {},
+          width: MediaQuery.of(context).size.width < 600 ? null : 500,
+          headerAnimationLoop: false,
+        ).show();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Detectar tamaño de pantalla
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
 
@@ -180,7 +271,6 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ Header responsivo
                 Row(
                   children: [
                     Container(
@@ -215,7 +305,6 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
                 ),
                 SizedBox(height: isMobile ? 20 : 24),
 
-                // ✅ Campo Nombre
                 TextFormField(
                   controller: _nombreController,
                   style: TextStyle(fontSize: isMobile ? 14 : 16),
@@ -239,11 +328,9 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
                 ),
                 SizedBox(height: isMobile ? 14 : 16),
 
-                // ✅ Botones de fecha responsivos
                 isMobile
                     ? Column(
                         children: [
-                          // Fecha Inicio
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -274,7 +361,6 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          // Fecha Fin
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -369,7 +455,6 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
                       ),
                 SizedBox(height: isMobile ? 14 : 16),
 
-                // ✅ Campo Duración
                 TextFormField(
                   controller: _duracionController,
                   style: TextStyle(fontSize: isMobile ? 14 : 16),
@@ -398,12 +483,10 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
                 ),
                 SizedBox(height: isMobile ? 20 : 24),
 
-                // ✅ Botones responsivos
                 isMobile
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Botón principal primero en móvil
                           ElevatedButton(
                             onPressed: _isLoading ? null : _guardar,
                             style: ElevatedButton.styleFrom(
@@ -442,7 +525,6 @@ class _DialogoCrearEditarCicloState extends State<DialogoCrearEditarCiclo> {
                                   ),
                           ),
                           const SizedBox(height: 10),
-                          // Botón cancelar después
                           TextButton(
                             onPressed: () => Navigator.pop(context),
                             style: TextButton.styleFrom(

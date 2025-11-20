@@ -6,8 +6,9 @@ import '../data/models/estudiante.dart';
 import '../data/models/administrador.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/services/token_service.dart';
+import '../data/services/fcm_service.dart'; // ✅ NUEVO
 import 'user_provider.dart';
-import '../main.dart'; // Para acceder al navigatorKey
+import '../main.dart';
 
 /// Provider para manejo de autenticación global
 class AuthProvider with ChangeNotifier {
@@ -47,6 +48,20 @@ class AuthProvider with ChangeNotifier {
 
       // ✅ NUEVO: Cargar datos extendidos del usuario
       await _cargarDatosUsuario();
+
+      // ✅ NUEVO: Registrar token FCM después del login (solo móvil)
+      if (!kIsWeb) {
+        // Esperar un momento para que el token se guarde
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        try {
+          await FCMService().registrarTokenDespuesDeLogin();
+          print('✅ Token FCM registrado después del login');
+        } catch (e) {
+          print('⚠️ Error registrando token FCM: $e');
+          // No lanzar error para no bloquear el login
+        }
+      }
 
       _isLoading = false;
       notifyListeners();
@@ -202,40 +217,42 @@ class AuthProvider with ChangeNotifier {
 
   // ✅ RESTAURAR SESIÓN AL INICIAR LA APP (CORREGIDO)
   Future<void> restoreSession() async {
-    _isLoading = true;
-    // ⚠️ NO llamar notifyListeners aquí para evitar error durante build
-    
-    try {
-      final token = await TokenService.getToken();
-      final userData = await TokenService.getUserData();
+  _isLoading = true;
+  
+  try {
+    final token = await TokenService.getToken();
+    final userData = await TokenService.getUserData();
 
-      if (token != null && userData != null) {
-        // Verificar si el token sigue siendo válido
-        final isValid = await _authRepository.verifyToken(token);
+    if (token != null && userData != null) {
+      // ✅ CAMBIO: Confiar en el token si existe (no verificar con backend)
+      // El backend validará cuando hagas peticiones posteriores
+      _token = token;
+      _currentUser = Usuario.fromJson(userData);
+      _isAuthenticated = true;
 
-        if (isValid) {
-          _token = token;
-          _currentUser = Usuario.fromJson(userData);
-          _isAuthenticated = true;
+      // ✅ Cargar datos extendidos después de restaurar sesión
+      await _cargarDatosUsuario();
 
-          // ✅ Cargar datos extendidos después de restaurar sesión
-          await _cargarDatosUsuario();
-        } else {
-          // Token inválido, limpiar todo
-          await TokenService.clearAll();
+      // ✅ Registrar token FCM al restaurar sesión (solo móvil)
+      if (!kIsWeb) {
+        try {
+          await FCMService().registrarTokenDespuesDeLogin();
+          print('✅ Token FCM registrado después de restaurar sesión');
+        } catch (e) {
+          print('⚠️ Error registrando token FCM: $e');
         }
       }
-
-      _isLoading = false;
-      // ✅ Llamar notifyListeners en el siguiente ciclo para evitar error
-      Future.microtask(() => notifyListeners());
-    } catch (e) {
-      _isLoading = false;
-      await TokenService.clearAll();
-      // ✅ Llamar notifyListeners en el siguiente ciclo para evitar error
-      Future.microtask(() => notifyListeners());
     }
+
+    _isLoading = false;
+    Future.microtask(() => notifyListeners());
+  } catch (e) {
+    print('❌ Error restaurando sesión: $e');
+    _isLoading = false;
+    await TokenService.clearAll();
+    Future.microtask(() => notifyListeners());
   }
+}
 
   // VERIFICAR SESIÓN
   Future<bool> checkSession() async {

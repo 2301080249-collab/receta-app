@@ -1,15 +1,28 @@
 import '../models/tema.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/utils/api_cache.dart'; // ✅ NUEVO
 import 'api_service.dart';
 import 'token_service.dart';
 
 class TemaService {
-  // Obtener temas de un curso
+  static final _cache = ApiCache(); // ✅ NUEVO
+
+  // Obtener temas de un curso CON CACHE
   static Future<List<Tema>> getTemasByCursoId(String cursoId) async {
+    final cacheKey = 'temas_curso_$cursoId';
+    
+    return await _cache.getOrFetch(
+      cacheKey,
+      () => _fetchTemasByCursoId(cursoId),
+      cacheDuration: const Duration(minutes: 5),
+    );
+  }
+
+  // ✅ NUEVO: Función privada que hace la petición real
+  static Future<List<Tema>> _fetchTemasByCursoId(String cursoId) async {
     try {
       print('🔍 getTemasByCursoId - cursoId: $cursoId');
       
-      // ✅ Obtener token
       final token = await TokenService.getToken();
       if (token == null) throw Exception('No hay sesión activa');
       
@@ -18,7 +31,7 @@ class TemaService {
       
       final response = await ApiService.get(
         endpoint,
-        headers: ApiConstants.headersWithAuth(token), // ✅ Envía token
+        headers: ApiConstants.headersWithAuth(token),
       );
       
       print('🔍 Response status: ${response.statusCode}');
@@ -29,6 +42,11 @@ class TemaService {
       print('❌ ERROR en getTemasByCursoId: $e');
       throw Exception('Error al obtener temas: $e');
     }
+  }
+
+  // ✅ NUEVO: Invalidar cache cuando se crea/edita/elimina un tema
+  static void invalidarCacheTemas(String cursoId) {
+    _cache.invalidate('temas_curso_$cursoId');
   }
 
   // Crear tema (docente)
@@ -44,6 +62,10 @@ class TemaService {
       );
 
       final data = ApiService.handleResponse(response);
+      
+      // ✅ Invalidar cache
+      invalidarCacheTemas(tema.cursoId);
+      
       return Tema.fromJson(data);
     } catch (e) {
       throw Exception('Error al crear tema: $e');
@@ -61,6 +83,9 @@ class TemaService {
         headers: ApiConstants.headersWithAuth(token),
         body: data,
       );
+      
+      // ✅ Invalidar cache (necesitarías pasar cursoId)
+      // invalidarCacheTemas(cursoId);
     } catch (e) {
       throw Exception('Error al actualizar tema: $e');
     }
@@ -76,6 +101,9 @@ class TemaService {
         '${ApiConstants.temas}/$temaId',
         headers: ApiConstants.headersWithAuth(token),
       );
+      
+      // ✅ Invalidar cache (necesitarías pasar cursoId)
+      // invalidarCacheTemas(cursoId);
     } catch (e) {
       throw Exception('Error al eliminar tema: $e');
     }

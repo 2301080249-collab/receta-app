@@ -1,0 +1,11 @@
+backend/.env
+backend/firebase-adminsdk.json
+backend/*.log
+frontend/recetario/android/app/google-services.json
+*.tar
+frontend/recetario/.metadata
+frontend/recetario/pubspec.lock
+docker-compose.yml
+frontend/recetario/.env
+.DS_Store
+*.png

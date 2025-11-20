@@ -6,7 +6,7 @@ import '../widgets/CursoSidebarWidget.dart';
 import '../widgets/custom_app_header.dart';
 
 /// Layout persistente para mantener fijos el header, pestañas y sidebar
-/// Solo cambia el contenido central según la navegación
+/// ✅ OPTIMIZADO: Evita llamadas API duplicadas
 class CursoPersistentLayout extends StatefulWidget {
   final Curso curso;
   final String userRole;
@@ -34,7 +34,8 @@ class _CursoPersistentLayoutState extends State<CursoPersistentLayout>
   late Animation<double> _animation;
   
   List<Tema> _temas = [];
-  bool _isLoadingTemas = true;
+  bool _isLoadingTemas = false; // ✅ Cambio: false por defecto
+  bool _temasYaCargados = false; // ✅ NUEVO: Flag para evitar recargas
   String _tabSeleccionada = 'curso';
   Map<int, bool> _temasExpandidos = {};
   bool _sidebarVisible = true;
@@ -60,10 +61,15 @@ class _CursoPersistentLayoutState extends State<CursoPersistentLayout>
       _temasExpandidos[i] = false;
     }
 
-    _cargarTemas();
-    
-    // Iniciar con sidebar visible
+    // ✅ Iniciar con sidebar visible
     _animationController.value = 1.0;
+
+    // ✅ OPTIMIZACIÓN: Cargar UNA SOLA VEZ después del primer frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_temasYaCargados) {
+        _cargarTemasOptimizado();
+      }
+    });
   }
 
   @override
@@ -71,9 +77,9 @@ class _CursoPersistentLayoutState extends State<CursoPersistentLayout>
     super.didChangeDependencies();
     // ✅ En móvil, iniciar con sidebar oculto
     final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth < 768) {
+    if (screenWidth < 768 && _sidebarVisible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _sidebarVisible) {
+        if (mounted) {
           setState(() {
             _sidebarVisible = false;
             _animationController.value = 0.0;
@@ -89,24 +95,52 @@ class _CursoPersistentLayoutState extends State<CursoPersistentLayout>
     super.dispose();
   }
 
-  Future<void> _cargarTemas() async {
+  // ✅ OPTIMIZADO: Carga UNA SOLA VEZ con protección
+  Future<void> _cargarTemasOptimizado() async {
+    // ✅ Protección: Si ya está cargando o ya cargó, no hace nada
+    if (_isLoadingTemas || _temasYaCargados) {
+      print('⏭️ Ya está cargando o ya cargó temas, saltando...');
+      return;
+    }
+    
+    if (!mounted) return;
+    
+    print('🚀 Iniciando carga de temas...');
     setState(() => _isLoadingTemas = true);
+    
     try {
       final temas = await _temaRepository.getTemasByCursoId(widget.curso.id);
+      
       if (mounted) {
         setState(() {
           _temas = temas;
           _isLoadingTemas = false;
+          _temasYaCargados = true; // ✅ MARCAR COMO CARGADO
         });
+        print('✅ Temas cargados exitosamente: ${temas.length} temas');
       }
     } catch (e) {
+      print('❌ Error al cargar temas: $e');
       if (mounted) {
-        setState(() => _isLoadingTemas = false);
+        setState(() {
+          _isLoadingTemas = false;
+          _temasYaCargados = true; // ✅ Marcar como intentado
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al cargar temas: $e')),
         );
       }
     }
+  }
+
+  // ✅ Función para recargar manualmente (cuando se crea/edita un tema)
+  Future<void> _cargarTemas() async {
+    print('🔄 Recarga manual solicitada...');
+    setState(() {
+      _temasYaCargados = false; // Permitir recarga
+      _isLoadingTemas = false;
+    });
+    await _cargarTemasOptimizado();
   }
 
   void _toggleSidebar() {
@@ -188,40 +222,37 @@ class _CursoPersistentLayoutState extends State<CursoPersistentLayout>
                       _buildContenidoSegunTab(),
 
                       // ✅ Botón flotante cuando sidebar está oculto
-                      // ✅ Botón flotante cuando sidebar está oculto
-// ✅ Botón flotante cuando sidebar está oculto
-// ✅ Botón flotante cuando sidebar está oculto
-if (!_sidebarVisible)
-  Positioned(
-    left: 0,   // ✅ Pegado a la izquierda
-    top: 0,    // ✅ Pegado arriba
-    child: Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: const Color(0xFF455A64),  // ✅ TU COLOR AZUL OSCURO (NO VERDE)
-        borderRadius: const BorderRadius.only(
-          bottomRight: Radius.circular(28),  // ✅ Solo esquina inferior derecha redondeada
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IconButton(
-        icon: const Icon(
-          Icons.menu,
-          color: Colors.white,
-          size: 28,
-        ),
-        onPressed: _toggleSidebar,
-        padding: EdgeInsets.zero,
-      ),
-    ),
-  ),
+                      if (!_sidebarVisible)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF455A64),
+                              borderRadius: const BorderRadius.only(
+                                bottomRight: Radius.circular(28),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.menu,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                              onPressed: _toggleSidebar,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

@@ -1,3 +1,4 @@
+import 'dart:convert'; // 👈 AGREGAR ESTE IMPORT
 import 'api_service.dart';
 import '../../core/constants/api_constants.dart';
 import '../models/curso.dart';
@@ -35,24 +36,22 @@ class CursoService {
   }
 
   /// Listar todos los cursos (ADMIN)
-  /// Listar todos los cursos (ADMIN)
-static Future<List<Curso>> listarCursos(String token) async {
-  final response = await ApiService.get(
-    ApiConstants.cursosAdmin,
-    headers: ApiConstants.headersWithAuth(token),
-  );
+  static Future<List<Curso>> listarCursos(String token) async {
+    final response = await ApiService.get(
+      ApiConstants.cursosAdmin,
+      headers: ApiConstants.headersWithAuth(token),
+    );
 
-  final data = ApiService.handleResponse(response) as List;
-  
-  // ✅ AGREGAR ESTE LOG
-  print('🎯 [CursoService.listarCursos] data.length: ${data.length}');
-  if (data.isNotEmpty) {
-    print('🎯 [CursoService.listarCursos] Primer item completo: ${data[0]}');
-    print('🎯 [CursoService.listarCursos] Tiene ciclos?: ${data[0]['ciclos']}');
+    final data = ApiService.handleResponse(response) as List;
+    
+    print('🎯 [CursoService.listarCursos] data.length: ${data.length}');
+    if (data.isNotEmpty) {
+      print('🎯 [CursoService.listarCursos] Primer item completo: ${data[0]}');
+      print('🎯 [CursoService.listarCursos] Tiene ciclos?: ${data[0]['ciclos']}');
+    }
+    
+    return data.map((json) => Curso.fromJson(json)).toList();
   }
-  
-  return data.map((json) => Curso.fromJson(json)).toList();
-}
 
   /// Listar cursos por ciclo (ADMIN)
   static Future<List<Curso>> listarCursosPorCiclo(
@@ -60,7 +59,7 @@ static Future<List<Curso>> listarCursos(String token) async {
     String cicloId,
   ) async {
     final response = await ApiService.get(
-      '${ApiConstants.cursosAdmin}?ciclo_id=$cicloId', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}?ciclo_id=$cicloId',
       headers: ApiConstants.headersWithAuth(token),
     );
 
@@ -74,7 +73,7 @@ static Future<List<Curso>> listarCursos(String token) async {
     String docenteId,
   ) async {
     final response = await ApiService.get(
-      '${ApiConstants.cursosAdmin}?docente_id=$docenteId', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}?docente_id=$docenteId',
       headers: ApiConstants.headersWithAuth(token),
     );
 
@@ -85,7 +84,7 @@ static Future<List<Curso>> listarCursos(String token) async {
   /// Obtener curso por ID (ADMIN)
   static Future<Curso> obtenerCursoPorId(String token, String cursoId) async {
     final response = await ApiService.get(
-      '${ApiConstants.cursosAdmin}/$cursoId', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}/$cursoId',
       headers: ApiConstants.headersWithAuth(token),
     );
 
@@ -120,7 +119,7 @@ static Future<List<Curso>> listarCursos(String token) async {
     if (activo != null) body['activo'] = activo;
 
     final response = await ApiService.patch(
-      '${ApiConstants.cursosAdmin}/$cursoId', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}/$cursoId',
       headers: ApiConstants.headersWithAuth(token),
       body: body,
     );
@@ -131,9 +130,16 @@ static Future<List<Curso>> listarCursos(String token) async {
   /// Eliminar curso (ADMIN)
   static Future<void> eliminarCurso(String token, String cursoId) async {
     final response = await ApiService.delete(
-      '${ApiConstants.cursosAdmin}/$cursoId', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}/$cursoId',
       headers: ApiConstants.headersWithAuth(token),
     );
+
+    // ✅ VALIDACIÓN: Capturar error 400 (curso con matrículas)
+    if (response.statusCode == 400) {
+      final data = json.decode(response.body);
+      final errorMessage = data['error'] ?? 'No se puede eliminar este curso';
+      throw Exception(errorMessage);
+    }
 
     ApiService.handleResponse(response);
   }
@@ -141,7 +147,7 @@ static Future<List<Curso>> listarCursos(String token) async {
   /// Activar curso (ADMIN)
   static Future<void> activarCurso(String token, String cursoId) async {
     final response = await ApiService.post(
-      '${ApiConstants.cursosAdmin}/$cursoId/activar', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}/$cursoId/activar',
       headers: ApiConstants.headersWithAuth(token),
       body: {},
     );
@@ -152,7 +158,7 @@ static Future<List<Curso>> listarCursos(String token) async {
   /// Desactivar curso (ADMIN)
   static Future<void> desactivarCurso(String token, String cursoId) async {
     final response = await ApiService.post(
-      '${ApiConstants.cursosAdmin}/$cursoId/desactivar', // ✅ CORREGIDO
+      '${ApiConstants.cursosAdmin}/$cursoId/desactivar',
       headers: ApiConstants.headersWithAuth(token),
       body: {},
     );

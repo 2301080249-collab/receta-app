@@ -6,7 +6,7 @@ import '../../../core/mixins/loading_state_mixin.dart';
 import '../../../core/mixins/snackbar_mixin.dart';
 import '../../../core/mixins/auth_token_mixin.dart';
 import '../../../core/utils/ciclo_converter.dart';
-
+import 'package:awesome_dialog/awesome_dialog.dart'; 
 // Repositories
 import '../../../data/repositories/admin_repository.dart';
 
@@ -96,82 +96,235 @@ class _CrearUsuarioScreenState extends State<CrearUsuarioScreen>
     }
   }
 
-  Future<void> _crearUsuario() async {
-    if (!_formKey.currentState!.validate()) return;
+ Future<void> _crearUsuario() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    try {
-      await executeWithLoading(() async {
-        final token = getToken();
-        await _adminRepository.crearUsuario(
-          nombreCompleto: _nombreController.text.trim(),
-          email: _emailController.text.trim(),
-          codigo: _codigoController.text.trim(),
-          rol: _tipoUsuario,
-          token: token,
-          telefono: _telefonoController.text.trim(),
-          ciclo: _tipoUsuario == 'estudiante' ? _ciclo : null,
-          seccion: _tipoUsuario == 'estudiante'
-              ? _seccionController.text.trim()
-              : null,
-          especialidad: _tipoUsuario == 'docente'
-              ? _especialidadController.text.trim()
-              : null,
-          gradoAcademico: _tipoUsuario == 'docente'
-              ? _gradoAcademicoController.text.trim()
-              : null,
-          departamento: _tipoUsuario == 'docente'
-              ? _departamentoController.text.trim()
-              : null,
-        );
-      });
+  try {
+    await executeWithLoading(() async {
+      final token = getToken();
+      await _adminRepository.crearUsuario(
+        nombreCompleto: _nombreController.text.trim(),
+        email: _emailController.text.trim(),
+        codigo: _codigoController.text.trim(),
+        rol: _tipoUsuario,
+        token: token,
+        telefono: _telefonoController.text.trim(),
+        ciclo: _tipoUsuario == 'estudiante' ? _ciclo : null,
+        seccion: _tipoUsuario == 'estudiante'
+            ? _seccionController.text.trim()
+            : null,
+        especialidad: _tipoUsuario == 'docente'
+            ? _especialidadController.text.trim()
+            : null,
+        gradoAcademico: _tipoUsuario == 'docente'
+            ? _gradoAcademicoController.text.trim()
+            : null,
+        departamento: _tipoUsuario == 'docente'
+            ? _departamentoController.text.trim()
+            : null,
+      );
+    });
 
-      showSuccess('Usuario creado exitosamente');
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      showError(e.toString());
+    // ✅ ÉXITO - VERDE
+    if (mounted) {
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        
+        // 🎨 ÍCONO VERDE DE ÉXITO
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor, // ✅ Verde #27AE60
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        
+        title: '¡Usuario Creado!',
+        desc: _tipoUsuario == 'estudiante'
+            ? 'El estudiante ${_nombreController.text.trim()} ha sido registrado exitosamente en el sistema.'
+            : 'El docente ${_nombreController.text.trim()} ha sido registrado exitosamente en el sistema.',
+        btnOkText: 'Aceptar',
+        btnOkColor: AppTheme.successColor, // ✅ Botón verde
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        headerAnimationLoop: false,
+        dismissOnTouchOutside: false,
+        btnOkOnPress: () {
+          Navigator.pop(context, true);
+        },
+      ).show();
+    }
+  } catch (e) {
+    // ❌ ERROR - ROJO
+    if (mounted) {
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.error,
+        animType: AnimType.scale,
+        
+        // 🎨 ÍCONO ROJO DE ERROR
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.errorColor, // ❌ Rojo #E74C3C
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.errorColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.error_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        
+        title: 'Error al crear usuario',
+        desc: e.toString().replaceAll('Exception: ', ''),
+        btnOkText: 'Entendido',
+        btnOkColor: AppTheme.errorColor, // ❌ Botón rojo
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        headerAnimationLoop: false,
+        btnOkOnPress: () {},
+      ).show();
     }
   }
+}
 
-  Future<void> _actualizarUsuario() async {
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _actualizarUsuario() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    try {
-      final usuario = widget.usuario;
-      if (usuario == null) throw Exception('No se encontró el usuario');
+  try {
+    final usuario = widget.usuario;
+    if (usuario == null) throw Exception('No se encontró el usuario');
 
-      await executeWithLoading(() async {
-        final token = getToken();
-        await _adminRepository.actualizarUsuario(
-          id: usuario['id'],
-          nombreCompleto: _nombreController.text.trim(),
-          email: _emailController.text.trim(),
-          codigo: _codigoController.text.trim(),
-          telefono: _telefonoController.text.trim(),
-          rol: _tipoUsuario,
-          ciclo: _tipoUsuario == 'estudiante' ? _ciclo : null,
-          seccion: _tipoUsuario == 'estudiante'
-              ? _seccionController.text.trim()
-              : null,
-          especialidad: _tipoUsuario == 'docente'
-              ? _especialidadController.text.trim()
-              : null,
-          gradoAcademico: _tipoUsuario == 'docente'
-              ? _gradoAcademicoController.text.trim()
-              : null,
-          departamento: _tipoUsuario == 'docente'
-              ? _departamentoController.text.trim()
-              : null,
-          token: token,
-        );
-      });
+    await executeWithLoading(() async {
+      final token = getToken();
+      await _adminRepository.actualizarUsuario(
+        id: usuario['id'],
+        nombreCompleto: _nombreController.text.trim(),
+        email: _emailController.text.trim(),
+        codigo: _codigoController.text.trim(),
+        telefono: _telefonoController.text.trim(),
+        rol: _tipoUsuario,
+        ciclo: _tipoUsuario == 'estudiante' ? _ciclo : null,
+        seccion: _tipoUsuario == 'estudiante'
+            ? _seccionController.text.trim()
+            : null,
+        especialidad: _tipoUsuario == 'docente'
+            ? _especialidadController.text.trim()
+            : null,
+        gradoAcademico: _tipoUsuario == 'docente'
+            ? _gradoAcademicoController.text.trim()
+            : null,
+        departamento: _tipoUsuario == 'docente'
+            ? _departamentoController.text.trim()
+            : null,
+        token: token,
+      );
+    });
 
-      showSuccess('Usuario actualizado correctamente');
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      showError(e.toString());
+    // ✅ ACTUALIZACIÓN EXITOSA - VERDE
+    if (mounted) {
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.success,
+        animType: AnimType.scale,
+        
+        // 🎨 ÍCONO VERDE DE ÉXITO
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor, // ✅ Verde #27AE60
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.successColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        
+        title: '¡Usuario Actualizado!',
+        desc: 'Los datos de ${_nombreController.text.trim()} han sido actualizados correctamente.',
+        btnOkText: 'Aceptar',
+        btnOkColor: AppTheme.successColor, // ✅ Botón verde
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        headerAnimationLoop: false,
+        dismissOnTouchOutside: false,
+        btnOkOnPress: () {
+          Navigator.pop(context, true);
+        },
+      ).show();
+    }
+  } catch (e) {
+    // ❌ ERROR - ROJO
+    if (mounted) {
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.error,
+        animType: AnimType.scale,
+        
+        // 🎨 ÍCONO ROJO DE ERROR
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: AppTheme.errorColor, // ❌ Rojo #E74C3C
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.errorColor.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.error_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        
+        title: 'Error al actualizar',
+        desc: e.toString().replaceAll('Exception: ', ''),
+        btnOkText: 'Entendido',
+        btnOkColor: AppTheme.errorColor, // ❌ Botón rojo
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        headerAnimationLoop: false,
+        btnOkOnPress: () {},
+      ).show();
     }
   }
-
+}
   // ================== UI RESPONSIVO ==================
   @override
   Widget build(BuildContext context) {

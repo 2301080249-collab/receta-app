@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
+
 import '../../data/models/ciclo.dart';
 import '../../data/models/curso.dart';
 import '../../data/models/usuario.dart';
@@ -66,7 +68,6 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
         _ciclos = results[0] as List<Ciclo>;
         _cursos = results[1] as List<Curso>;
         _estudiantes = estudiantes;
-        // Seleccionar ciclo activo por defecto
         if (_ciclos.isNotEmpty) {
           _cicloSeleccionado = _ciclos.firstWhere(
             (c) => c.activo,
@@ -87,15 +88,15 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
 
   Future<void> _crearMatricula() async {
     if (_estudianteSeleccionado == null) {
-      _mostrarError('Seleccione un estudiante');
+      _mostrarAdvertencia('Seleccione un estudiante');
       return;
     }
     if (_cursoSeleccionado == null) {
-      _mostrarError('Seleccione un curso');
+      _mostrarAdvertencia('Seleccione un curso');
       return;
     }
     if (_cicloSeleccionado == null) {
-      _mostrarError('Seleccione un ciclo académico');
+      _mostrarAdvertencia('Seleccione un ciclo académico');
       return;
     }
 
@@ -120,31 +121,98 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
       }
     } catch (e) {
       if (mounted) {
-        _mostrarError('Error al crear matrícula: $e');
-      }
-    } finally {
-      if (mounted) {
         setState(() => _isLoading = false);
+        _mostrarError('Error al crear matrícula: $e');
       }
     }
   }
 
+  // ⚠️ ADVERTENCIA CON AWESOME DIALOG
+  void _mostrarAdvertencia(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.orange[600],
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: 'Campos Incompletos',
+      desc: mensaje,
+      btnOkText: 'Entendido',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {},
+      btnOkColor: Colors.orange[600],
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
+  }
+
+  // ❌ ERROR CON AWESOME DIALOG
+  void _mostrarError(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.error,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: AppTheme.errorColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.errorColor.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.error_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: 'Error',
+      desc: mensaje,
+      btnOkText: 'Cerrar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {},
+      btnOkColor: AppTheme.errorColor,
+      headerAnimationLoop: false,
+    ).show();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 📱 Detectar si es móvil
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isMobile = screenWidth < 600;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      // ✅ RESPONSIVO: Padding adaptativo
       insetPadding: EdgeInsets.symmetric(
         horizontal: isMobile ? 16 : 40,
         vertical: isMobile ? 24 : 40,
       ),
       child: ConstrainedBox(
-        // ✅ RESPONSIVO: Ancho y alto adaptativos
         constraints: BoxConstraints(
           maxWidth: isMobile ? screenWidth : 600,
           maxHeight: isMobile ? screenHeight * 0.9 : 750,
@@ -258,7 +326,7 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
   Widget _buildDropdownCiclo(bool isMobile) {
     return DropdownButtonFormField<Ciclo>(
       value: _cicloSeleccionado,
-      isExpanded: true, // ✅ FIX: Evita error de mouse_tracker
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: 'Ciclo Académico',
         labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -322,7 +390,7 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
 
     return DropdownButtonFormField<Usuario>(
       value: _estudianteSeleccionado,
-      isExpanded: true, // ✅ FIX: Evita error de mouse_tracker
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: 'Estudiante',
         labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -448,7 +516,7 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
 
     return DropdownButtonFormField<Curso>(
       value: _cursoSeleccionado,
-      isExpanded: true, // ✅ FIX: Evita error de mouse_tracker
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: 'Curso',
         labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -512,7 +580,7 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
   Widget _buildDropdownEstado(bool isMobile) {
     return DropdownButtonFormField<String>(
       value: _estadoSeleccionado,
-      isExpanded: true, // ✅ FIX: Evita error de mouse_tracker
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: 'Estado',
         labelStyle: TextStyle(fontSize: isMobile ? 13 : 14),
@@ -552,20 +620,20 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
   }
 
   Widget _buildWarningBox(String mensaje, bool isMobile) {
-  return Container(
-    padding: EdgeInsets.all(isMobile ? 12 : 16),
-    decoration: BoxDecoration(
-      color: Color(0xFF475569).withOpacity(0.1), // ✅ Gris claro
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Color(0xFF475569).withOpacity(0.3)), // ✅ Gris borde
-    ),
-    child: Row(
-      children: [
-        Icon(
-          Icons.warning_amber,
-          color: Color(0xFF475569), // ✅ Gris oscuro
-          size: isMobile ? 20 : 24,
-        ),
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Color(0xFF475569).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Color(0xFF475569).withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber,
+            color: Color(0xFF475569),
+            size: isMobile ? 20 : 24,
+          ),
           SizedBox(width: isMobile ? 8 : 12),
           Expanded(
             child: Text(
@@ -586,23 +654,23 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         TextButton(
-  onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
-  style: TextButton.styleFrom(
-    foregroundColor: AppTheme.textSecondary, // ✅ Color gris como en ciclos
-  ),
-  child: Text(
-    'Cancelar',
-    style: TextStyle(
-      fontSize: isMobile ? 13 : 14,
-      fontWeight: FontWeight.w600, // ✅ Negrita como en ciclos
-    ),
-  ),
-),
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
+          style: TextButton.styleFrom(
+            foregroundColor: AppTheme.textSecondary,
+          ),
+          child: Text(
+            'Cancelar',
+            style: TextStyle(
+              fontSize: isMobile ? 13 : 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
         SizedBox(width: isMobile ? 8 : 12),
         ElevatedButton(
           onPressed: _isLoading ? null : _crearMatricula,
           style: ElevatedButton.styleFrom(
-          backgroundColor: Color(0xFF475569),
+            backgroundColor: Color(0xFF475569),
             padding: EdgeInsets.symmetric(
               horizontal: isMobile ? 16 : 24,
               vertical: isMobile ? 10 : 12,
@@ -623,17 +691,6 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
                 ),
         ),
       ],
-    );
-  }
-
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 }

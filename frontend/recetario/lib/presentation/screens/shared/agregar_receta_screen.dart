@@ -1,658 +1,979 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/token_manager.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../providers/portafolio_provider.dart';
-import '../../../data/models/receta_api.dart';
+import '../../../data/models/portafolio.dart';
 
-/// Pantalla profesional para buscar y agregar recetas desde TheMealDB
+/// Pantalla para agregar o editar recetas propias
 class AgregarRecetaScreen extends StatefulWidget {
-  const AgregarRecetaScreen({Key? key}) : super(key: key);
+  final Portafolio? recetaParaEditar;
+  
+  const AgregarRecetaScreen({
+    Key? key,
+    this.recetaParaEditar,
+  }) : super(key: key);
 
   @override
   State<AgregarRecetaScreen> createState() => _AgregarRecetaScreenState();
 }
 
 class _AgregarRecetaScreenState extends State<AgregarRecetaScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _comentarioController = TextEditingController();
-  RecetaApi? _recetaSeleccionada;
-  bool _mostrarVistaPrevia = false;
-  bool _mostrarCategorias = false;
+  final _formKey = GlobalKey<FormState>();
+  final _tituloController = TextEditingController();
+  final _descripcionController = TextEditingController();
+  final _ingredientesController = TextEditingController();
+  final _preparacionController = TextEditingController();
+  final _videoController = TextEditingController();
+
+  String? _categoriaSeleccionada;
+  String _visibilidad = 'publica';
+
+  File? _imagenSeleccionadaMovil;
+  Uint8List? _imagenSeleccionadaWeb;
+  String? _nombreArchivo;
+
+  bool get _esEdicion => widget.recetaParaEditar != null;
+  String? _imagenActualUrl;
+  bool _cambioImagen = false;
+
+  bool _isUploading = false;
 
   @override
   void initState() {
     super.initState();
-    _cargarCategorias();
+    
+    if (_esEdicion) {
+      _cargarDatosReceta(widget.recetaParaEditar!);
+    }
+    
+    _ingredientesController.addListener(_onIngredientesChanged);
+    _preparacionController.addListener(_onPreparacionChanged);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _cargarCategorias();
+    });
+  }
+
+  void _cargarDatosReceta(Portafolio receta) {
+    _tituloController.text = receta.titulo;
+    _descripcionController.text = receta.descripcion ?? '';
+    _ingredientesController.text = receta.ingredientes;
+    _preparacionController.text = receta.preparacion;
+    _videoController.text = receta.videoUrl ?? '';
+    _categoriaSeleccionada = receta.categoriaId;
+    _visibilidad = receta.visibilidad;
+    
+    if (receta.fotos.isNotEmpty) {
+      _imagenActualUrl = receta.fotos.first;
+    }
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
-    _comentarioController.dispose();
+    _tituloController.dispose();
+    _descripcionController.dispose();
+    _ingredientesController.dispose();
+    _preparacionController.dispose();
+    _videoController.dispose();
     super.dispose();
   }
 
   Future<void> _cargarCategorias() async {
+    if (!mounted) return;
+    
     final provider = context.read<PortafolioProvider>();
-    await provider.cargarCategorias();
+    provider.limpiarCategorias();
+    
+    try {
+      await provider.cargarCategorias();
+      if (provider.categorias.isEmpty) {
+        throw Exception('No se cargaron categorías');
+      }
+    } catch (e) {
+      if (mounted) {
+        _mostrarError('Error cargando categorías: $e');
+      }
+    }
+  }
+
+  void _onIngredientesChanged() {
+    final text = _ingredientesController.text;
+    if (text.endsWith('\n')) {
+      final newText = text + '• ';
+      
+      _ingredientesController.removeListener(_onIngredientesChanged);
+      _ingredientesController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newText.length),
+      );
+      _ingredientesController.addListener(_onIngredientesChanged);
+    }
+  }
+
+  void _onPreparacionChanged() {
+    final text = _preparacionController.text;
+    if (text.endsWith('\n')) {
+      final lines = text.split('\n');
+      int nextNumber = 1;
+      
+      for (var line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isNotEmpty) {
+          final match = RegExp(r'^(\d+)\.').firstMatch(trimmed);
+          if (match != null) {
+            final num = int.tryParse(match.group(1) ?? '0') ?? 0;
+            if (num >= nextNumber) {
+              nextNumber = num + 1;
+            }
+          }
+        }
+      }
+      
+      final newText = text + '$nextNumber. ';
+      
+      _preparacionController.removeListener(_onPreparacionChanged);
+      _preparacionController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newText.length),
+      );
+      _preparacionController.addListener(_onPreparacionChanged);
+    }
+  }
+
+  Future<void> _seleccionarImagen() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        _nombreArchivo = pickedFile.name;
+
+        if (kIsWeb) {
+          final bytes = await pickedFile.readAsBytes();
+          setState(() {
+            _imagenSeleccionadaWeb = bytes;
+            _imagenSeleccionadaMovil = null;
+            _cambioImagen = true;
+          });
+        } else {
+          setState(() {
+            _imagenSeleccionadaMovil = File(pickedFile.path);
+            _imagenSeleccionadaWeb = null;
+            _cambioImagen = true;
+          });
+        }
+      }
+    } catch (e) {
+      _mostrarError('Error al seleccionar la imagen');
+    }
+  }
+
+  Future<String?> _subirImagen() async {
+    try {
+      final userId = await TokenManager.getUserId();
+      if (userId == null) {
+        throw Exception('No hay usuario autenticado');
+      }
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+      Uint8List bytes;
+      String extension = 'jpg';
+
+      if (kIsWeb) {
+        if (_imagenSeleccionadaWeb == null) {
+          throw Exception('No hay imagen seleccionada (web)');
+        }
+        bytes = _imagenSeleccionadaWeb!;
+        if (_nombreArchivo != null) {
+          extension = _nombreArchivo!.split('.').last.toLowerCase();
+        }
+      } else {
+        if (_imagenSeleccionadaMovil == null) {
+          throw Exception('No hay imagen seleccionada (móvil)');
+        }
+        bytes = await _imagenSeleccionadaMovil!.readAsBytes();
+        extension = _imagenSeleccionadaMovil!.path.split('.').last.toLowerCase();
+      }
+
+      final fileName = 'receta_${timestamp}.$extension';
+      final path = 'portafolio/$userId/$fileName';
+
+      final client = Supabase.instance.client;
+      
+      await client.storage.from('archivos').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: false,
+              contentType: 'image/$extension',
+            ),
+          );
+
+      final url = client.storage.from('archivos').getPublicUrl(path);
+      return url;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _eliminarImagenAntigua(String urlImagen) async {
+    try {
+      final userId = await TokenManager.getUserId();
+      if (userId == null) return;
+
+      final uri = Uri.parse(urlImagen);
+      final pathSegments = uri.pathSegments;
+      
+      final portafolioIndex = pathSegments.indexOf('portafolio');
+      if (portafolioIndex == -1) return;
+      
+      final path = pathSegments.sublist(portafolioIndex).join('/');
+      
+      final client = Supabase.instance.client;
+      await client.storage.from('archivos').remove([path]);
+      
+      print('✅ Imagen antigua eliminada del Storage: $path');
+    } catch (e) {
+      print('⚠️ Error eliminando imagen antigua: $e');
+    }
+  }
+
+  Future<void> _actualizarReceta() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_categoriaSeleccionada == null) {
+      _mostrarAdvertencia('Por favor selecciona una categoría');
+      return;
+    }
+
+    if (_imagenActualUrl == null && 
+        _imagenSeleccionadaWeb == null && 
+        _imagenSeleccionadaMovil == null) {
+      _mostrarAdvertencia('Por favor agrega una foto de tu receta');
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    try {
+      String fotoUrl;
+      
+      if (_cambioImagen) {
+        final nuevaFotoUrl = await _subirImagen();
+        if (nuevaFotoUrl == null) throw Exception('Error al subir la nueva imagen');
+        
+        fotoUrl = nuevaFotoUrl;
+        
+        if (_imagenActualUrl != null) {
+          await _eliminarImagenAntigua(_imagenActualUrl!);
+        }
+      } else {
+        fotoUrl = _imagenActualUrl!;
+      }
+
+      final provider = context.read<PortafolioProvider>();
+      final request = ActualizarPortafolioRequest(
+        titulo: _tituloController.text.trim(),
+        descripcion: _descripcionController.text.trim().isEmpty
+            ? null
+            : _descripcionController.text.trim(),
+        ingredientes: _ingredientesController.text.trim(),
+        preparacion: _preparacionController.text.trim(),
+        fotos: [fotoUrl],
+        videoUrl: _videoController.text.trim().isEmpty
+            ? null
+            : _videoController.text.trim(),
+        categoriaId: _categoriaSeleccionada!,
+        visibilidad: _visibilidad,
+      );
+
+      final success = await provider.actualizarReceta(
+        widget.recetaParaEditar!.id,
+        request,
+      );
+
+      if (mounted) {
+        setState(() => _isUploading = false);
+        
+        if (success) {
+          _mostrarExito('¡Receta actualizada exitosamente!');
+        } else {
+          _mostrarError(provider.error ?? 'Error al actualizar la receta');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploading = false);
+        _mostrarError('Error: $e');
+      }
+    }
+  }
+
+  Future<void> _crearReceta() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_categoriaSeleccionada == null) {
+      _mostrarAdvertencia('Por favor selecciona una categoría');
+      return;
+    }
+
+    if (_imagenSeleccionadaWeb == null && _imagenSeleccionadaMovil == null) {
+      _mostrarAdvertencia('Por favor agrega una foto de tu receta');
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    try {
+      final fotoUrl = await _subirImagen();
+      if (fotoUrl == null) throw Exception('Error al subir la imagen');
+
+      final provider = context.read<PortafolioProvider>();
+      final request = CrearPortafolioRequest(
+        titulo: _tituloController.text.trim(),
+        descripcion: _descripcionController.text.trim().isEmpty
+            ? null
+            : _descripcionController.text.trim(),
+        ingredientes: _ingredientesController.text.trim(),
+        preparacion: _preparacionController.text.trim(),
+        fotos: [fotoUrl],
+        videoUrl: _videoController.text.trim().isEmpty
+            ? null
+            : _videoController.text.trim(),
+        categoriaId: _categoriaSeleccionada!,
+        tipoReceta: 'propia',
+        visibilidad: _visibilidad,
+      );
+
+      final success = await provider.crearReceta(request);
+
+      if (mounted) {
+        setState(() => _isUploading = false);
+        
+        if (success) {
+          _mostrarExito('¡Receta creada exitosamente!');
+        } else {
+          _mostrarError(provider.error ?? 'Error al crear la receta');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploading = false);
+        _mostrarError('Error: $e');
+      }
+    }
+  }
+
+  Future<void> _guardarReceta() async {
+    if (_esEdicion) {
+      await _actualizarReceta();
+    } else {
+      await _crearReceta();
+    }
+  }
+
+  // ⚠️ ADVERTENCIA CON AWESOME DIALOG
+  void _mostrarAdvertencia(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.warning,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.orange[600],
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: 'Campos Incompletos',
+      desc: mensaje,
+      btnOkText: 'Entendido',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {},
+      btnOkColor: Colors.orange[600],
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
+  }
+
+  // ❌ ERROR CON AWESOME DIALOG
+  void _mostrarError(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.error,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: AppTheme.errorColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.errorColor.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.error_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: 'Error',
+      desc: mensaje,
+      btnOkText: 'Cerrar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {},
+      btnOkColor: AppTheme.errorColor,
+      headerAnimationLoop: false,
+    ).show();
+  }
+
+  // ✅ ÉXITO CON AWESOME DIALOG
+  void _mostrarExito(String mensaje) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.success,
+      animType: AnimType.scale,
+      customHeader: Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: AppTheme.successColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.successColor.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.check_circle_rounded,
+          color: Colors.white,
+          size: 60,
+        ),
+      ),
+      title: _esEdicion ? '¡Receta Actualizada!' : '¡Receta Creada!',
+      desc: mensaje,
+      btnOkText: 'Aceptar',
+      width: MediaQuery.of(context).size.width < 600 ? null : 500,
+      btnOkOnPress: () {
+        Navigator.of(context).pop(true); // Cerrar pantalla y recargar
+      },
+      btnOkColor: AppTheme.successColor,
+      dismissOnTouchOutside: false,
+      headerAnimationLoop: false,
+    ).show();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_mostrarVistaPrevia && _recetaSeleccionada != null) {
-      return _buildVistaPrevia();
-    }
+    final isWeb = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
+        backgroundColor: const Color(0xFF37474F),
         elevation: 0,
-        title: const Text(
-          'Agregar Receta',
-          style: TextStyle(fontWeight: FontWeight.w600),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
-        centerTitle: true,
+        title: Text(
+          _esEdicion ? 'Editar Receta' : 'Nueva Receta',
+          style: const TextStyle(color: Colors.white, fontSize: 18),
+        ),
       ),
-      body: Column(
-        children: [
-          // Header con búsqueda moderna
-          _buildSearchHeader(),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(isWeb ? 32 : 0),
+        child: Center(
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: isWeb ? 700 : double.infinity,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildImageSelector(isWeb),
+                  
+                  Padding(
+                    padding: EdgeInsets.all(isWeb ? 0 : 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: isWeb ? 20 : 16),
 
-          // Resultados en GRID (web) o LISTA HORIZONTAL (móvil)
-          Expanded(
-            child: Consumer<PortafolioProvider>(
-              builder: (context, provider, _) {
-                if (provider.isLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+                        if (isWeb)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildTextField(
+                                  controller: _tituloController,
+                                  label: 'Título',
+                                  hint: 'Ej: Lomo Saltado Casero',
+                                  icon: Icons.restaurant_menu,
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Requerido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(child: _buildCategoriaSelector()),
+                            ],
+                          )
+                        else ...[
+                          _buildTextField(
+                            controller: _tituloController,
+                            label: 'Título',
+                            hint: 'Ej: Lomo Saltado Casero',
+                            icon: Icons.restaurant_menu,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Requerido';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _buildCategoriaSelector(),
+                        ],
+                        
+                        const SizedBox(height: 12),
 
-                if (provider.resultadosBusqueda.isEmpty) {
-                  return _buildEstadoInicial();
-                }
+                        _buildTextField(
+                          controller: _descripcionController,
+                          label: 'Descripción (opcional)',
+                          hint: 'Cuéntanos sobre esta receta...',
+                          icon: Icons.description,
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 12),
 
-                return _buildResultados(provider.resultadosBusqueda);
-              },
+                        _buildTextField(
+                          controller: _ingredientesController,
+                          label: 'Ingredientes',
+                          hint: '• 500g de lomo\n• 2 cebollas\n• 3 tomates',
+                          icon: Icons.list,
+                          maxLines: isWeb ? 6 : 5,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Los ingredientes son obligatorios';
+                            }
+                            return null;
+                          },
+                          helperText: 'Presiona Enter para agregar viñetas automáticamente',
+                        ),
+                        const SizedBox(height: 12),
+
+                        _buildTextField(
+                          controller: _preparacionController,
+                          label: 'Pasos de Preparación',
+                          hint: '1. Cortar la carne\n2. Sazonar\n3. Saltear',
+                          icon: Icons.format_list_numbered,
+                          maxLines: isWeb ? 6 : 5,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Los pasos son obligatorios';
+                            }
+                            return null;
+                          },
+                          helperText: 'Presiona Enter para numerar automáticamente',
+                        ),
+                        const SizedBox(height: 12),
+
+                        _buildTextField(
+                          controller: _videoController,
+                          label: 'URL del Video (opcional)',
+                          hint: 'https://youtube.com/...',
+                          icon: Icons.video_library,
+                        ),
+                        const SizedBox(height: 16),
+
+                        _buildVisibilidadSelector(),
+                        const SizedBox(height: 20),
+
+                        if (_esEdicion)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _isUploading ? null : () => Navigator.pop(context),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    side: const BorderSide(color: Color(0xFF37474F)),
+                                  ),
+                                  child: const Text(
+                                    'Cancelar',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF37474F),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _isUploading ? null : _guardarReceta,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFFF9800),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: _isUploading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Actualizar',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          ElevatedButton(
+                            onPressed: _isUploading ? null : _guardarReceta,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF9800),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _isUploading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Publicar Receta',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildSearchHeader() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Barra de búsqueda
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Título
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
+  Widget _buildImageSelector(bool isWeb) {
+    final tieneImagen = _imagenSeleccionadaWeb != null || 
+                        _imagenSeleccionadaMovil != null || 
+                        (_esEdicion && _imagenActualUrl != null);
+
+    return GestureDetector(
+      onTap: _seleccionarImagen,
+      child: Container(
+        height: isWeb ? 250 : 200,
+        margin: isWeb ? null : const EdgeInsets.all(0),
+        decoration: BoxDecoration(
+          color: tieneImagen ? Colors.black : Colors.grey[100],
+          borderRadius: isWeb ? BorderRadius.circular(16) : BorderRadius.zero,
+          border: isWeb
+              ? Border.all(
+                  color: tieneImagen ? Colors.transparent : Colors.grey[300]!,
+                  width: 2,
+                )
+              : null,
+        ),
+        child: tieneImagen
+            ? Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: isWeb ? BorderRadius.circular(14) : BorderRadius.zero,
+                    child: _imagenSeleccionadaWeb != null
+                        ? Image.memory(
+                            _imagenSeleccionadaWeb!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          )
+                        : _imagenSeleccionadaMovil != null
+                            ? Image.file(
+                                _imagenSeleccionadaMovil!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                              )
+                            : Image.network(
+                                _imagenActualUrl!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                              ),
+                  ),
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        color: Colors.black54,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(
-                        Icons.search,
-                        color: Theme.of(context).primaryColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Buscar en TheMealDB',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-
-                // Campo de búsqueda moderno
-                Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.grey[200]!,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Buscar por nombre...',
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 15,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Colors.grey[400],
-                        size: 22,
-                      ),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: Icon(
-                                Icons.clear,
-                                color: Colors.grey[400],
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                _searchController.clear();
-                                context.read<PortafolioProvider>().limpiarBusqueda();
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
-                    onSubmitted: (query) {
-                      if (query.trim().isNotEmpty) {
-                        context.read<PortafolioProvider>().buscarRecetas(query);
-                      };
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Botón de categorías
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        _mostrarCategorias = !_mostrarCategorias;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _mostrarCategorias
-                            ? Theme.of(context).primaryColor.withOpacity(0.1)
-                            : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _mostrarCategorias
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey[200]!,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.category_outlined,
-                            size: 18,
-                            color: _mostrarCategorias
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey[600],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _mostrarCategorias
-                                ? 'Ocultar categorías'
-                                : 'Buscar por categoría',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: _mostrarCategorias
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey[700],
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            _mostrarCategorias
-                                ? Icons.keyboard_arrow_up
-                                : Icons.keyboard_arrow_down,
-                            size: 20,
-                            color: _mostrarCategorias
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey[600],
-                          ),
-                        ],
+                      child: IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                        onPressed: _seleccionarImagen,
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          // Categorías desplegables
-          if (_mostrarCategorias) _buildCategorias(),
-        ],
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF9800).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_photo_alternate,
+                      size: 48,
+                      color: Color(0xFFFF9800),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Agregar Foto de la Receta',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF37474F),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Recomendado: 1200x800px',
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildCategorias() {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+    String? helperText,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      validator: validator,
+      style: const TextStyle(fontSize: 15),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        helperText: helperText,
+        helperStyle: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        prefixIcon: Icon(icon, size: 22),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  Widget _buildCategoriaSelector() {
     return Consumer<PortafolioProvider>(
       builder: (context, provider, _) {
         if (provider.categorias.isEmpty) {
-          return const SizedBox.shrink();
+          return const LinearProgressIndicator();
         }
 
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: provider.categorias.map((categoria) {
-              return Material(
-                color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: () {
-                    provider.buscarPorCategoria(categoria);
-                    setState(() {
-                      _mostrarCategorias = false;
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).primaryColor.withOpacity(0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Text(
-                      _traducirCategoria(categoria),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
+        return DropdownButtonFormField<String>(
+          value: _categoriaSeleccionada,
+          decoration: InputDecoration(
+            labelText: 'Categoría',
+            prefixIcon: const Icon(Icons.category, size: 22),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
+          items: provider.categorias.map((categoria) {
+            return DropdownMenuItem(
+              value: categoria.id,
+              child: Row(
+                children: [
+                  if (categoria.icono != null) Text(categoria.icono!, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                  Text(categoria.nombre, style: const TextStyle(fontSize: 15)),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() => _categoriaSeleccionada = value);
+          },
+          validator: (value) {
+            if (value == null) {
+              return 'Selecciona una categoría';
+            }
+            return null;
+          },
         );
       },
     );
   }
 
-  Widget _buildEstadoInicial() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.restaurant_menu,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+  Widget _buildVisibilidadSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildVisibilidadChip(
+            label: 'Pública',
+            icon: Icons.public,
+            value: 'publica',
+            color: const Color(0xFF2196F3),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Busca recetas deliciosas',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildVisibilidadChip(
+            label: 'Privada',
+            icon: Icons.lock,
+            value: 'privada',
+            color: const Color(0xFF9E9E9E),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Escribe el nombre de una receta\no selecciona una categoría',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.grey[600],
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  // ✅ GRID (web/tablet) o LISTA HORIZONTAL (móvil)
-  Widget _buildResultados(List<RecetaApi> recetas) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // ✅ MÓVIL: Lista horizontal deslizable
-              if (constraints.maxWidth < 500) {
-                return ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: recetas.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    final receta = recetas[index];
-                    return _buildRecetaCardHorizontal(receta);
-                  },
-                );
-              }
-
-              // ✅ WEB/TABLET: Grid responsive
-              int crossAxisCount = 4;
-              double spacing = 16;
-              
-              if (constraints.maxWidth < 900) {
-                crossAxisCount = 3;
-                spacing = 14;
-              }
-              if (constraints.maxWidth < 700) {
-                crossAxisCount = 2;
-                spacing = 12;
-              }
-
-              return GridView.builder(
-                padding: EdgeInsets.zero,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  childAspectRatio: 0.8,
-                  crossAxisSpacing: spacing,
-                  mainAxisSpacing: spacing,
-                ),
-                itemCount: recetas.length,
-                itemBuilder: (context, index) {
-                  final receta = recetas[index];
-                  return _buildRecetaCard(receta);
-                },
-              );
-            },
+  Widget _buildVisibilidadChip({
+    required String label,
+    required IconData icon,
+    required String value,
+    required Color color,
+  }) {
+    final isSelected = _visibilidad == value;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() => _visibilidad = value);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: 2,
           ),
         ),
-      ),
-    );
-  }
-
-  // ✅ CARD HORIZONTAL para MÓVIL (como la imagen 2)
-  Widget _buildRecetaCardHorizontal(RecetaApi receta) {
-    return Material(
-      color: Colors.white,
-      elevation: 2,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: () => _seleccionarReceta(receta),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 100,
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Imagen cuadrada
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 76,
-                  height: 76,
-                  child: receta.imagenUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: receta.imagenUrl!,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[200],
-                            child: const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Colors.grey[200],
-                            child: Icon(
-                              Icons.error_outline,
-                              color: Colors.grey[400],
-                              size: 24,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey[200],
-                          child: Icon(
-                            Icons.restaurant,
-                            color: Colors.grey[400],
-                            size: 24,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Información a la derecha
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Nombre
-                    Text(
-                      receta.nombre,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // Categoría con badge
-                    if (receta.categoria != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: Colors.blue.shade200,
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          _traducirCategoria(receta.categoria!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ✅ CARD VERTICAL para WEB/TABLET (original)
-  Widget _buildRecetaCard(RecetaApi receta) {
-    return Material(
-      color: Colors.white,
-      elevation: 2,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: () => _seleccionarReceta(receta),
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Imagen
-            Expanded(
-              flex: 65,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    receta.imagenUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: receta.imagenUrl!,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              color: Colors.grey[200],
-                              child: const Center(
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: Colors.grey[200],
-                              child: Icon(
-                                Icons.error_outline,
-                                color: Colors.grey[400],
-                                size: 32,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            color: Colors.grey[200],
-                            child: Icon(
-                              Icons.restaurant,
-                              color: Colors.grey[400],
-                              size: 32,
-                            ),
-                          ),
-                    
-                    // Badge de categoría
-                    if (receta.categoria != null)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            _traducirCategoria(receta.categoria!),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blue.shade700,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? Colors.white : color,
             ),
-
-            // Información
-            Expanded(
-              flex: 35,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Nombre
-                    Text(
-                      receta.nombre,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    // Área geográfica
-                    if (receta.area != null)
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.public,
-                            size: 12,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              receta.area!,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : color,
               ),
             ),
           ],
@@ -660,409 +981,39 @@ class _AgregarRecetaScreenState extends State<AgregarRecetaScreen> {
       ),
     );
   }
+}
 
-  Future<void> _seleccionarReceta(RecetaApi receta) async {
-    // Obtener detalles completos si no los tiene
-    if (receta.ingredientes.isEmpty) {
-      final provider = context.read<PortafolioProvider>();
-      final recetaCompleta = await provider.obtenerDetalleReceta(receta.id);
-      
-      if (recetaCompleta != null) {
-        receta = recetaCompleta;
-      }
-    }
+class ActualizarPortafolioRequest {
+  final String titulo;
+  final String? descripcion;
+  final String ingredientes;
+  final String preparacion;
+  final List<String> fotos;
+  final String? videoUrl;
+  final String categoriaId;
+  final String visibilidad;
 
-    setState(() {
-      _recetaSeleccionada = receta;
-      _mostrarVistaPrevia = true;
-    });
-  }
+  ActualizarPortafolioRequest({
+    required this.titulo,
+    this.descripcion,
+    required this.ingredientes,
+    required this.preparacion,
+    required this.fotos,
+    this.videoUrl,
+    required this.categoriaId,
+    this.visibilidad = 'publica',
+  });
 
-  Widget _buildVistaPrevia() {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            setState(() {
-              _mostrarVistaPrevia = false;
-              _recetaSeleccionada = null;
-              _comentarioController.clear();
-            });
-          },
-        ),
-        title: const Text(
-          'Vista Previa',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Imagen con altura fija
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(20),
-                      ),
-                      child: SizedBox(
-                        height: 350,
-                        width: double.infinity,
-                        child: _recetaSeleccionada!.imagenUrl != null
-                            ? CachedNetworkImage(
-                                imageUrl: _recetaSeleccionada!.imagenUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: Colors.grey[200],
-                                  child: const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Colors.grey[200],
-                                  child: const Icon(
-                                    Icons.error_outline,
-                                    size: 64,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              )
-                            : Container(
-                                color: Colors.grey[200],
-                                child: const Icon(
-                                  Icons.restaurant,
-                                  size: 64,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                      ),
-                    ),
-
-                    // Contenido
-                    Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Nombre de la receta
-                          Text(
-                            _recetaSeleccionada!.nombre,
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Badges de categoría y área
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              if (_recetaSeleccionada!.categoria != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.blue.shade200,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.category_outlined,
-                                        size: 16,
-                                        color: Colors.blue.shade700,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _traducirCategoria(
-                                            _recetaSeleccionada!.categoria!),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.blue.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              if (_recetaSeleccionada!.area != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.green.shade200,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.public,
-                                        size: 16,
-                                        color: Colors.green.shade700,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _recetaSeleccionada!.area!,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.green.shade700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Sección de comentario
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.grey[200]!,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.chat_bubble_outline,
-                                      size: 20,
-                                      color: Colors.grey[700],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Agrega un comentario (opcional)',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.grey[800],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                TextField(
-                                  controller: _comentarioController,
-                                  decoration: InputDecoration(
-                                    hintText:
-                                        'Cuéntanos tu experiencia con esta receta...',
-                                    hintStyle: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 14,
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                  maxLines: 3,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // Botones de acción
-                          Row(
-                            children: [
-                              // Botón cancelar
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _mostrarVistaPrevia = false;
-                                      _recetaSeleccionada = null;
-                                      _comentarioController.clear();
-                                    });
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    side: BorderSide(
-                                      color: Colors.grey[300]!,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Cancelar',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              // Botón publicar
-                              Expanded(
-                                flex: 2,
-                                child: ElevatedButton(
-                                  onPressed: _agregarAlPortafolio,
-                                  style: ElevatedButton.styleFrom(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.add_circle_outline, size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Publicar en Portafolio',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _agregarAlPortafolio() async {
-    if (_recetaSeleccionada == null) return;
-
-    final provider = context.read<PortafolioProvider>();
-    final comentario = _comentarioController.text.trim();
-
-    final success = await provider.agregarReceta(
-      _recetaSeleccionada!,
-      comentarioUsuario: comentario.isNotEmpty ? comentario : null,
-    );
-
-    if (!mounted) return;
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 12),
-              Text('Receta agregada al portafolio'),
-            ],
-          ),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-      Navigator.pop(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(provider.error ?? 'Error al agregar receta'),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
-  }
-
-  String _traducirCategoria(String categoria) {
-    const traducciones = {
-      'Beef': 'Res',
-      'Chicken': 'Pollo',
-      'Dessert': 'Postres',
-      'Lamb': 'Cordero',
-      'Miscellaneous': 'Varios',
-      'Pasta': 'Pasta',
-      'Pork': 'Cerdo',
-      'Seafood': 'Mariscos',
-      'Side': 'Acompañamientos',
-      'Starter': 'Entradas',
-      'Vegan': 'Vegano',
-      'Vegetarian': 'Vegetariano',
-      'Breakfast': 'Desayuno',
-      'Goat': 'Cabra',
+  Map<String, dynamic> toJson() {
+    return {
+      'titulo': titulo,
+      'descripcion': descripcion,
+      'ingredientes': ingredientes,
+      'preparacion': preparacion,
+      'fotos': fotos,
+      'video_url': videoUrl,
+      'categoria_id': categoriaId,
+      'visibilidad': visibilidad,
     };
-
-    return traducciones[categoria] ?? categoria;
   }
 }

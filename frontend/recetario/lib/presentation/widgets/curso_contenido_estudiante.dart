@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../data/models/curso.dart';
 import '../../../data/models/tema.dart';
 import '../../../data/repositories/tema_repository.dart';
@@ -8,8 +10,8 @@ import '../widgets/tema_card_estudiante.dart';
 /// Se usa dentro del CursoPersistentLayout
 class CursoContenidoEstudiante extends StatefulWidget {
   final Curso curso;
-  final List<Tema> temas; // ✅ Recibe los temas ya cargados
-  final VoidCallback? onTemasActualizados; // ✅ Callback para notificar cambios
+  final List<Tema> temas;
+  final VoidCallback? onTemasActualizados;
   
   const CursoContenidoEstudiante({
     Key? key,
@@ -31,9 +33,8 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
   void initState() {
     super.initState();
     _temaRepository = TemaRepository();
-    _temas = widget.temas; // ✅ Usar los temas recibidos
+    _temas = widget.temas;
     
-    // Inicializar todos los temas como colapsados
     for (int i = 1; i <= 16; i++) {
       _temasExpandidos[i] = false;
     }
@@ -44,13 +45,12 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.temas != widget.temas) {
       setState(() {
-        _temas = widget.temas; // ✅ Actualizar si cambian
+        _temas = widget.temas;
       });
     }
   }
 
   Future<void> _cargarTemas() async {
-    // ✅ Notificar al layout persistente para que recargue los temas
     widget.onTemasActualizados?.call();
   }
 
@@ -82,19 +82,24 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
   @override
   Widget build(BuildContext context) {
     final temasCon16 = _obtenerTemasCon16();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 12.w : 16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Título del curso
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            padding: EdgeInsets.symmetric(
+              horizontal: kIsWeb ? 24 : (isMobile ? 16.w : 20),
+              vertical: kIsWeb ? 28 : (isMobile ? 16.h : 20),
+            ),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -104,9 +109,9 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
               ],
             ),
             child: Text(
-              '${widget.curso.nombre.toUpperCase()}-${widget.curso.nivelRomano}-${widget.curso.seccion ?? "A"}${widget.curso.nivel ?? ""}-${widget.curso.cicloNombre ?? "2023-I"}',
-              style: const TextStyle(
-                fontSize: 32,
+              '${widget.curso.nombre.toUpperCase()} ${widget.curso.nivelRomano}-${widget.curso.seccion ?? "A"} ${widget.curso.cicloNombre ?? "2023-I"}',
+              style: TextStyle(
+                fontSize: kIsWeb ? 32 : (isMobile ? 18.sp : 24),
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
                 letterSpacing: 0.3,
@@ -115,14 +120,19 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
             ),
           ),
           
-          const SizedBox(height: 32),
+          SizedBox(height: kIsWeb ? 32 : (isMobile ? 16.h : 24)),
 
-          // Lista de temas (mismo diseño que docente)
+          // Lista de temas
           ...temasCon16.map((tema) {
-            return TemaCardEstudiante(
-              key: ValueKey(tema.id),
-              tema: tema,
-              onMaterialVisto: _cargarTemas,
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: kIsWeb ? 0 : (isMobile ? 8.h : 12),
+              ),
+              child: TemaCardEstudiante(
+                key: ValueKey(tema.id),
+                tema: tema,
+                onMaterialVisto: _cargarTemas,
+              ),
             );
           }).toList(),
         ],

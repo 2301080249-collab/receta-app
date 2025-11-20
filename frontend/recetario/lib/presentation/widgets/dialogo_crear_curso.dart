@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
 
 // Core
 import '../../core/mixins/loading_state_mixin.dart';
 import '../../core/mixins/snackbar_mixin.dart';
 import '../../core/mixins/auth_token_mixin.dart';
+import '../../core/theme/app_theme.dart';
 
 // Repositories
 import '../../data/repositories/curso_repository.dart';
@@ -23,13 +25,13 @@ import '../widgets/custom_textfield.dart';
 class DialogoCrearCurso extends StatefulWidget {
   final List<Ciclo> ciclos;
   final VoidCallback onGuardar;
-  final Curso? curso; // ✅ NUEVO: curso a editar (null = crear)
+  final Curso? curso;
 
   const DialogoCrearCurso({
     Key? key,
     required this.ciclos,
     required this.onGuardar,
-    this.curso, // ✅ NUEVO
+    this.curso,
   }) : super(key: key);
 
   @override
@@ -52,7 +54,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
   List<Map<String, String>> _docentes = [];
   bool _loadingDocentes = true;
 
-  // ✅ NUEVO: variable para saber si estamos editando
   bool get _esEdicion => widget.curso != null;
 
   @override
@@ -60,13 +61,11 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
     super.initState();
     _cargarDocentes();
     
-    // ✅ NUEVO: Si hay un curso, cargar sus datos
     if (_esEdicion) {
       _cargarDatosCurso();
     }
   }
 
-  // ✅ NUEVO: Método para cargar los datos del curso en el formulario
   void _cargarDatosCurso() {
     final curso = widget.curso!;
     
@@ -121,7 +120,43 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_cicloSeleccionado == null || _docenteSeleccionado == null) {
-      showError('Seleccione ciclo y docente');
+      // ⚠️ ADVERTENCIA - NARANJA
+      AwesomeDialog(
+        context: context,
+        dialogType: DialogType.warning,
+        animType: AnimType.scale,
+        
+        // 🎨 ÍCONO NARANJA DE ADVERTENCIA
+        customHeader: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: Colors.orange[600],
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.white,
+            size: 60,
+          ),
+        ),
+        
+        title: 'Campos Incompletos',
+        desc: 'Por favor seleccione ciclo y docente para continuar.',
+        btnOkText: 'Entendido',
+        width: MediaQuery.of(context).size.width < 600 ? null : 500,
+        btnOkOnPress: () {},
+        btnOkColor: Colors.orange[600],
+        dismissOnTouchOutside: false,
+        headerAnimationLoop: false,
+      ).show();
       return;
     }
 
@@ -130,9 +165,7 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         final token = getToken();
         final cursoRepo = CursoRepository();
 
-        // ✅ MODIFICADO: Crear o actualizar según el modo
         if (_esEdicion) {
-          // Modo edición
           await cursoRepo.actualizarCurso(
             token: token,
             cursoId: widget.curso!.id,
@@ -150,7 +183,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
                 : null,
           );
         } else {
-          // Modo creación
           await cursoRepo.crearCurso(
             token: token,
             nombre: _nombreController.text.trim(),
@@ -169,30 +201,103 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         }
       });
 
-      // ✅ MODIFICADO: Mensaje según el modo
-      showSuccess(_esEdicion 
-          ? 'Curso actualizado exitosamente' 
-          : 'Curso creado exitosamente');
-      Navigator.pop(context);
-      widget.onGuardar();
+      // ✅ ÉXITO - VERDE
+      if (mounted) {
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.success,
+          animType: AnimType.scale,
+          
+          // 🎨 ÍCONO VERDE DE ÉXITO
+          customHeader: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppTheme.successColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.successColor.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 60,
+            ),
+          ),
+          
+          title: _esEdicion ? '¡Curso Actualizado!' : '¡Curso Creado!',
+          desc: _esEdicion 
+              ? 'Los datos del curso han sido actualizados correctamente.'
+              : 'El curso ha sido creado exitosamente.',
+          btnOkText: 'Aceptar',
+          width: MediaQuery.of(context).size.width < 600 ? null : 500,
+          btnOkOnPress: () {
+            Navigator.pop(context);
+            widget.onGuardar();
+          },
+          btnOkColor: AppTheme.successColor,
+          dismissOnTouchOutside: false,
+          headerAnimationLoop: false,
+        ).show();
+      }
+      
     } catch (e) {
-      showError(e.toString());
+      // ❌ ERROR - ROJO
+      if (mounted) {
+        AwesomeDialog(
+          context: context,
+          dialogType: DialogType.error,
+          animType: AnimType.scale,
+          
+          // 🎨 ÍCONO ROJO DE ERROR
+          customHeader: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.errorColor.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.error_rounded,
+              color: Colors.white,
+              size: 60,
+            ),
+          ),
+          
+          title: 'Error',
+          desc: 'No se pudo ${_esEdicion ? "actualizar" : "crear"} el curso: ${e.toString()}',
+          btnOkText: 'Cerrar',
+          width: MediaQuery.of(context).size.width < 600 ? null : 500,
+          btnOkOnPress: () {},
+          btnOkColor: AppTheme.errorColor,
+          headerAnimationLoop: false,
+        ).show();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 📱 Detectar si es móvil
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return BaseFormDialog(
-      // ✅ MODIFICADO: Título según el modo
       title: _esEdicion ? 'Editar Curso' : 'Crear Nuevo Curso',
       icon: Icons.book,
       formKey: _formKey,
       isLoading: isLoading,
       onSave: _guardar,
-      // ✅ MODIFICADO: Texto del botón según el modo
       saveButtonText: _esEdicion ? 'Actualizar Curso' : 'Crear Curso',
       children: [
         CustomTextField(
@@ -212,7 +317,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         ),
         const SizedBox(height: 16),
 
-        // Dropdown de Ciclo
         DropdownButtonFormField<String>(
           value: _cicloSeleccionado,
           decoration: const InputDecoration(
@@ -234,7 +338,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         ),
         const SizedBox(height: 16),
 
-        // Dropdown de Docente
         DocenteDropdownField(
           docentes: _docentes,
           value: _docenteSeleccionado,
@@ -243,7 +346,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         ),
         const SizedBox(height: 16),
 
-        // ✅ RESPONSIVO: Nivel y Sección
         isMobile
             ? Column(
                 children: [
@@ -271,7 +373,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
               ),
         const SizedBox(height: 16),
 
-        // ✅ RESPONSIVO: Créditos y Horario
         isMobile
             ? Column(
                 children: [

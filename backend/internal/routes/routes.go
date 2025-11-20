@@ -18,8 +18,18 @@ func SetupRoutes(
 	materialHandler *handlers.MaterialHandler,
 	tareaHandler *handlers.TareaHandler,
 	entregaHandler *handlers.EntregaHandler,
+	categoriaHandler *handlers.CategoriaHandler,
+	portafolioHandler *handlers.PortafolioHandler,
+	notificationHandler *handlers.NotificationHandler,
+	usuarioHandler *handlers.UsuarioHandler,
 ) {
 	api := app.Group("/api")
+
+	// ==================== USUARIOS (COMPARTIR) ====================
+	usuarios := api.Group("/usuarios")
+	usuarios.Use(middleware.AuthRequired)
+	usuarios.Get("/para-compartir", usuarioHandler.ObtenerUsuariosParaCompartir)
+	usuarios.Post("/device", usuarioHandler.RegistrarDispositivo) // ✅ NUEVA LÍNEA
 
 	// ==================== AUTH ====================
 	auth := api.Group("/auth")
@@ -27,8 +37,7 @@ func SetupRoutes(
 	auth.Post("/cambiar-password", authHandler.ChangePassword)
 	auth.Patch("/omitir-cambio-password", authHandler.OmitirCambioPassword)
 
-	// ==================== ✅ NUEVAS RUTAS: PERFIL POR ROL ====================
-	// Estas rutas requieren autenticación y devuelven los datos extendidos según el rol
+	// ==================== ✅ PERFILES POR ROL ====================
 	api.Get("/docente/perfil", middleware.AuthRequired, authHandler.GetDocentePerfil)
 	api.Get("/estudiante/perfil", middleware.AuthRequired, authHandler.GetEstudiantePerfil)
 	api.Get("/admin/perfil", middleware.AuthRequired, authHandler.GetAdministradorPerfil)
@@ -36,7 +45,6 @@ func SetupRoutes(
 	// ==================== ADMIN ====================
 	admin := api.Group("/admin")
 	admin.Use(middleware.AuthRequired)
-	// ✅ AGREGA ESTA LÍNEA NUEVA (línea después de admin.Use)
 	admin.Get("/dashboard/stats", adminHandler.ObtenerEstadisticas)
 
 	admin.Post("/crear-usuario", adminHandler.CrearUsuario)
@@ -71,6 +79,9 @@ func SetupRoutes(
 	admin.Patch("/matriculas/:id", matriculaHandler.ActualizarMatricula)
 	admin.Delete("/matriculas/:id", matriculaHandler.EliminarMatricula)
 
+	// ==================== ✅ CATEGORÍAS (ADMIN) ====================
+	admin.Post("/categorias", categoriaHandler.Crear)
+
 	// ==================== ESTUDIANTES ====================
 	estudiantes := api.Group("/estudiantes")
 	estudiantes.Use(middleware.AuthRequired)
@@ -90,12 +101,10 @@ func SetupRoutes(
 	temas.Post("/", temaHandler.CrearTema)
 	temas.Get("/:id", temaHandler.ObtenerTema)
 	temas.Patch("/:id", temaHandler.ActualizarTema)
-	temas.Put("/:id", temaHandler.ActualizarTema) // ✅ AGREGADO: Soporte para PUT
+	temas.Put("/:id", temaHandler.ActualizarTema)
 	temas.Delete("/:id", temaHandler.EliminarTema)
 
-	// Materiales por tema
 	temas.Get("/:id/materiales", materialHandler.ListarMaterialesPorTema)
-	// Tareas por tema
 	temas.Get("/:id/tareas", tareaHandler.ListarTareasPorTema)
 
 	// ==================== MATERIALES ====================
@@ -117,9 +126,7 @@ func SetupRoutes(
 	tareas.Put("/:id", tareaHandler.ActualizarTarea)
 	tareas.Delete("/:id", tareaHandler.EliminarTarea)
 
-	// Entregas de una tarea (docente)
 	tareas.Get("/:id/entregas", tareaHandler.GetEntregasPorTarea)
-	// Mi entrega (estudiante)
 	tareas.Get("/:id/mi-entrega", entregaHandler.ObtenerMiEntrega)
 
 	// ==================== ENTREGAS ====================
@@ -131,12 +138,50 @@ func SetupRoutes(
 	entregas.Put("/:id", entregaHandler.EditarEntrega)
 	entregas.Delete("/:id", entregaHandler.EliminarEntrega)
 
-	// Subir archivos a entrega
 	entregas.Post("/:id/archivos", entregaHandler.SubirArchivoEntrega)
-
-	// Eliminar archivo individual
 	entregas.Delete("/archivos/:archivoId", entregaHandler.EliminarArchivoEntrega)
-
-	// Calificar entrega (docente)
 	entregas.Put("/:id/calificar", entregaHandler.CalificarEntrega)
+
+	// ==================== ✅ CATEGORÍAS (PÚBLICO) ====================
+	categorias := api.Group("/categorias")
+	categorias.Use(middleware.AuthRequired)
+
+	categorias.Get("/", categoriaHandler.ListarActivas)
+	categorias.Get("/:id", categoriaHandler.ObtenerPorID)
+
+	// ==================== ✅ PORTAFOLIO ====================
+	portafolio := api.Group("/portafolio")
+	portafolio.Use(middleware.AuthRequired)
+
+	// CRUD Recetas
+	portafolio.Post("/", portafolioHandler.Crear)
+	portafolio.Put("/:id", portafolioHandler.Actualizar)
+	portafolio.Get("/mis-recetas", portafolioHandler.ObtenerMisRecetas)
+	portafolio.Get("/publicas", portafolioHandler.ObtenerPublicas)
+	portafolio.Get("/:id", portafolioHandler.ObtenerPorID)
+	portafolio.Delete("/:id", portafolioHandler.Eliminar)
+
+	// Likes
+	portafolio.Post("/:id/like", portafolioHandler.ToggleLike)
+	portafolio.Get("/:id/ya-dio-like", portafolioHandler.YaDioLike)
+
+	// Comentarios
+	portafolio.Post("/:id/comentarios", portafolioHandler.CrearComentario)
+	portafolio.Get("/:id/comentarios", portafolioHandler.ObtenerComentarios)
+
+	// ==================== ✅ NOTIFICACIONES ====================
+	notificaciones := api.Group("/notificaciones")
+	notificaciones.Use(middleware.AuthRequired)
+
+	// Compartir recetas
+	notificaciones.Post("/compartir-receta", notificationHandler.CompartirReceta)
+
+	// Mis notificaciones
+	notificaciones.Get("/mis-notificaciones", notificationHandler.ObtenerMisNotificaciones)
+	notificaciones.Patch("/:id/leer", notificationHandler.MarcarComoLeida)
+	notificaciones.Patch("/leer-todas", notificationHandler.MarcarTodasComoLeidas)
+	notificaciones.Get("/no-leidas/count", notificationHandler.ContarNoLeidas)
+
+	// Registrar dispositivo FCM
+	notificaciones.Post("/registrar-dispositivo", notificationHandler.RegistrarDispositivo)
 }

@@ -24,8 +24,8 @@ class SearchBarWidget extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 40 : 16,
-        vertical: isDesktop ? 20 : 16,
+        horizontal: isDesktop ? 60 : 16, // ✅ Cambio: 40 → 60 para alinear con filtros
+        vertical: isDesktop ? 14 : 12,   // ✅ Cambio: 20 → 14 (menos altura)
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -76,10 +76,10 @@ class SearchBarWidget extends StatelessWidget {
   /// Campo de búsqueda
   Widget _buildSearchField() {
     return Container(
-      height: 50,
+      height: 42, // ✅ Cambio: 50 → 42 (más pequeño)
       decoration: BoxDecoration(
         color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10), // ✅ Cambio: 12 → 10
         border: Border.all(
           color: Colors.grey[300]!,
           width: 1,
@@ -91,31 +91,33 @@ class SearchBarWidget extends StatelessWidget {
           hintText: 'Buscar recetas...',
           hintStyle: TextStyle(
             color: Colors.grey[500],
-            fontSize: 15,
+            fontSize: 14, // ✅ Cambio: 15 → 14
           ),
           prefixIcon: Icon(
             Icons.search,
             color: Colors.grey[600],
-            size: 22,
+            size: 20, // ✅ Cambio: 22 → 20
           ),
           suffixIcon: searchQuery.isNotEmpty
               ? IconButton(
                   icon: Icon(
                     Icons.clear,
                     color: Colors.grey[600],
-                    size: 20,
+                    size: 18, // ✅ Cambio: 20 → 18
                   ),
                   onPressed: () => onSearchChanged(''),
+                  padding: EdgeInsets.zero, // ✅ Nuevo: reduce padding
+                  constraints: const BoxConstraints(), // ✅ Nuevo: más compacto
                 )
               : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+            horizontal: 14, // ✅ Cambio: 16 → 14
+            vertical: 10,   // ✅ Cambio: 14 → 10
           ),
         ),
         style: const TextStyle(
-          fontSize: 15,
+          fontSize: 14, // ✅ Cambio: 15 → 14
           color: Colors.black87,
         ),
       ),
@@ -129,11 +131,11 @@ class SearchBarWidget extends StatelessWidget {
     final categoriaActual = categoriaSeleccionada ?? 'Todas';
 
     return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 42, // ✅ Cambio: 50 → 42 (igual que search field)
+      padding: const EdgeInsets.symmetric(horizontal: 14), // ✅ Cambio: 16 → 14
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10), // ✅ Cambio: 12 → 10
         border: Border.all(
           color: Colors.grey[300]!,
           width: 1,
@@ -146,14 +148,15 @@ class SearchBarWidget extends StatelessWidget {
           icon: Icon(
             Icons.keyboard_arrow_down,
             color: Colors.grey[700],
+            size: 20, // ✅ Nuevo: tamaño del icono
           ),
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: 14, // ✅ Cambio: 15 → 14
             color: Colors.black87,
             fontWeight: FontWeight.w500,
           ),
           dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10), // ✅ Cambio: 12 → 10
           items: categoriasConTodas.map((categoria) {
             return DropdownMenuItem<String>(
               value: categoria,
@@ -161,10 +164,10 @@ class SearchBarWidget extends StatelessWidget {
                 children: [
                   Icon(
                     _getCategoryIcon(categoria),
-                    size: 18,
+                    size: 16, // ✅ Cambio: 18 → 16
                     color: Colors.orange[700],
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8), // ✅ Cambio: 10 → 8
                   Text(categoria),
                 ],
               ),

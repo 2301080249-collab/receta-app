@@ -5,3 +5,8 @@ build/
 .flutter-plugins
 .package
 pubspec.lock
+backend/firebase-adminsdk.json
+frontend/recetario/android/app/google-services.json
+*.tar
+*.png
+.DS_Store

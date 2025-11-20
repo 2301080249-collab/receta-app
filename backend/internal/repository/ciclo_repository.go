@@ -63,3 +63,21 @@ func (r *cicloRepository) GetCicloActivo() ([]byte, error) {
 
 	return r.client.DoRequest("GET", url, nil, headers)
 }
+
+// ==================== VALIDACIONES ====================
+
+// ✅ NUEVO: Verificar si un ciclo tiene cursos
+func (r *cicloRepository) CicloTieneCursos(cicloID string) (bool, error) {
+	url := config.AppConfig.SupabaseURL + "/rest/v1/cursos?ciclo_id=eq." + cicloID + "&select=id&limit=1"
+
+	headers := r.client.GetAuthHeaders()
+
+	result, err := r.client.DoRequest("GET", url, nil, headers)
+	if err != nil {
+		return false, err
+	}
+
+	// Si la respuesta es "[]" significa que no hay cursos
+	// Si hay algo más, significa que sí hay cursos
+	return string(result) != "[]", nil
+}

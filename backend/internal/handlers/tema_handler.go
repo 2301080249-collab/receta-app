@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt" // ✅ AGREGAR ESTA LÍNEA
 	"recetario-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
@@ -15,18 +16,25 @@ func NewTemaHandler(temaService *services.TemaService) *TemaHandler {
 }
 
 // GET /api/cursos/:id/temas
-// GET /api/cursos/:id/temas
 func (h *TemaHandler) ListarTemasPorCurso(c *fiber.Ctx) error {
 	cursoID := c.Params("id")
 
+	// ✅ LOG 1
+	fmt.Printf("🔍 BACKEND: ListarTemasPorCurso - cursoID: %s\n", cursoID)
+
 	if cursoID == "" {
+		fmt.Println("❌ BACKEND: cursoID vacío")
 		return c.Status(400).JSON(fiber.Map{"error": "ID de curso requerido"})
 	}
 
 	temas, err := h.temaService.GetTemasByCursoID(cursoID)
 	if err != nil {
+		fmt.Printf("❌ BACKEND: Error: %v\n", err)
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+
+	// ✅ LOG 2
+	fmt.Printf("✅ BACKEND: Devolviendo %d temas\n", len(temas))
 
 	return c.JSON(temas)
 }
@@ -81,8 +89,7 @@ func (h *TemaHandler) EliminarTema(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Tema eliminado exitosamente"})
 }
 
-// GET /api/temas/:id - Obtener detalle de un tema con materiales y tareas
-// GET /api/temas/:id - Obtener detalle de un tema con materiales y tareas
+// GET /api/temas/:id
 func (h *TemaHandler) ObtenerTema(c *fiber.Ctx) error {
 	temaID := c.Params("id")
 

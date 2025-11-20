@@ -119,6 +119,17 @@ func (s *CicloService) ActualizarCiclo(cicloID string, req *models.ActualizarCic
 }
 
 func (s *CicloService) EliminarCiclo(cicloID string) error {
+	// ✅ VALIDACIÓN: Verificar si tiene cursos
+	tieneCursos, err := s.cicloRepo.CicloTieneCursos(cicloID)
+	if err != nil {
+		return fmt.Errorf("error al verificar cursos: %w", err)
+	}
+
+	if tieneCursos {
+		return fmt.Errorf("No se puede eliminar el ciclo porque tiene cursos registrados")
+	}
+
+	// Si no tiene cursos, proceder con la eliminación
 	if err := s.cicloRepo.DeleteCiclo(cicloID); err != nil {
 		return fmt.Errorf("error al eliminar ciclo: %w", err)
 	}

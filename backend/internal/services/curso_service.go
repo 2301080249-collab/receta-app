@@ -214,6 +214,17 @@ func (s *CursoService) ActualizarCurso(cursoID string, req *models.ActualizarCur
 }
 
 func (s *CursoService) EliminarCurso(cursoID string) error {
+	// ✅ VALIDACIÓN: Verificar si tiene matrículas
+	tieneMatriculas, err := s.cursoRepo.CursoTieneMatriculas(cursoID)
+	if err != nil {
+		return fmt.Errorf("error al verificar matrículas: %w", err)
+	}
+
+	if tieneMatriculas {
+		return fmt.Errorf("No se puede eliminar el curso porque tiene estudiantes matriculados")
+	}
+
+	// Si no tiene matrículas, proceder con la eliminación
 	if err := s.cursoRepo.DeleteCurso(cursoID); err != nil {
 		return fmt.Errorf("error al eliminar curso: %w", err)
 	}
