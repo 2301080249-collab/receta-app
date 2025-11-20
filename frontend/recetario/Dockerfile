@@ -7,8 +7,7 @@ RUN flutter pub get
 
 COPY . .
 
-# Copiar .env
-COPY .env .env
+
 
 RUN flutter build web --release
 
