@@ -4,6 +4,9 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates git
 
+# Configurar GOTOOLCHAIN para aceptar cualquier versión
+ENV GOTOOLCHAIN=auto
+
 COPY go.mod go.sum ./
 RUN go mod download
 
