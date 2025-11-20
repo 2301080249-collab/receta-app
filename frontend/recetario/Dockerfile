@@ -7,15 +7,24 @@ RUN flutter pub get
 
 COPY . .
 
-# ✅ Copiar .env de producción
-COPY .env.production .env
+# Copiar .env
+COPY .env .env
 
 RUN flutter build web --release
 
 FROM nginx:alpine
 
 COPY --from=build /app/build/web /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
+
+# Configuración básica de nginx
+RUN echo 'server { \
+    listen 80; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
