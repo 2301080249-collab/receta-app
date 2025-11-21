@@ -107,7 +107,7 @@ func main() {
 	tareaHandler := handlers.NewTareaHandler(tareaService, entregaService)
 	entregaHandler := handlers.NewEntregaHandler(entregaService, tareaService, storageService)
 	categoriaHandler := handlers.NewCategoriaHandler(categoriaService)
-	portafolioHandler := handlers.NewPortafolioHandler(portafolioService)
+	portafolioHandler := handlers.NewPortafolioHandler(portafolioService, storageService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService) // ✅ NUEVO
 	usuarioHandler := handlers.NewUsuarioHandler(adminService, notificationService)
 	// ✅ NUEVO
