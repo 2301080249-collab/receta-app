@@ -10,11 +10,15 @@ import (
 )
 
 type PortafolioHandler struct {
-	service *services.PortafolioService
+	service        *services.PortafolioService
+	storageService *services.StorageService
 }
 
-func NewPortafolioHandler(service *services.PortafolioService) *PortafolioHandler {
-	return &PortafolioHandler{service: service}
+func NewPortafolioHandler(service *services.PortafolioService, storageService *services.StorageService) *PortafolioHandler {
+	return &PortafolioHandler{
+		service:        service,
+		storageService: storageService,
+	}
 }
 
 // ==================== CRUD RECETAS ====================
@@ -228,6 +232,45 @@ func (h *PortafolioHandler) Eliminar(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"message": "Receta eliminada exitosamente"})
+}
+
+// ==================== SUBIR IMAGEN ====================
+
+func (h *PortafolioHandler) SubirImagen(c *fiber.Ctx) error {
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Archivo no proporcionado"})
+	}
+
+	userID := c.Locals("user_id")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No autorizado"})
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Error obteniendo ID del usuario",
+		})
+	}
+
+	folder := "portafolio/" + userIDStr
+
+	fileContent, err := file.Open()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Error al abrir archivo"})
+	}
+	defer fileContent.Close()
+
+	url, sizeMB, err := h.storageService.UploadFile(folder, fileContent, file)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"url":     url,
+		"size_mb": sizeMB,
+	})
 }
 
 // ==================== LIKES ====================

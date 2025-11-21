@@ -152,6 +152,8 @@ func SetupRoutes(
 	// ==================== ✅ PORTAFOLIO ====================
 	portafolio := api.Group("/portafolio")
 	portafolio.Use(middleware.AuthRequired)
+	// Subir imagen
+	portafolio.Post("/upload-imagen", portafolioHandler.SubirImagen)
 
 	// CRUD Recetas
 	portafolio.Post("/", portafolioHandler.Crear)
