@@ -7,9 +7,7 @@ RUN flutter pub get
 
 COPY . .
 
-
-
-RUN flutter build web --release --no-tree-shake-icons --web-renderer html
+RUN flutter build web --release --no-tree-shake-icons
 
 FROM nginx:alpine
 
