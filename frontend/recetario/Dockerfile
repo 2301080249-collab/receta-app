@@ -9,7 +9,7 @@ COPY . .
 
 
 
-RUN flutter build web --release
+RUN flutter build web --release --no-tree-shake-icons --web-renderer html
 
 FROM nginx:alpine
 
