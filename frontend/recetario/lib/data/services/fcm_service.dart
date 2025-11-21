@@ -4,7 +4,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../main.dart';
 import '../../config/routes.dart';
 import '../../core/utils/token_manager.dart';
@@ -132,44 +131,40 @@ class FCMService {
 
   /// Enviar token FCM al backend
   Future<void> _enviarTokenAlBackend(String token) async {
-    try {
-      final authToken = await TokenManager.getToken();
-      
-      if (authToken == null) {
-        print('⚠️ No hay token de autenticación, no se puede enviar FCM token');
-        return;
-      }
-
-      final baseUrl = dotenv.env['BACKEND_URL'];
-      if (baseUrl == null) {
-        print('❌ BACKEND_URL no configurado en .env');
-        return;
-      }
-
-      print('📤 Enviando FCM token al backend...');
-      
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/usuarios/device'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-        },
-        body: jsonEncode({
-          'fcm_token': token,
-          'plataforma': Platform.isAndroid ? 'android' : 'ios',
-        }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Token FCM registrado en el backend correctamente');
-      } else {
-        print('⚠️ Error al registrar token: ${response.statusCode} - ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Error enviando token al backend: $e');
+  try {
+    final authToken = await TokenManager.getToken();
+    
+    if (authToken == null) {
+      print('⚠️ No hay token de autenticación, no se puede enviar FCM token');
+      return;
     }
-  }
 
+    // ✅ URL hardcodeada directamente
+    final baseUrl = 'https://receta-backend.onrender.com';
+
+    print('📤 Enviando FCM token al backend...');
+    
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/usuarios/device'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: jsonEncode({
+        'fcm_token': token,
+        'plataforma': Platform.isAndroid ? 'android' : 'ios',
+      }),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      print('✅ Token FCM registrado en el backend correctamente');
+    } else {
+      print('⚠️ Error al registrar token: ${response.statusCode} - ${response.body}');
+    }
+  } catch (e) {
+    print('❌ Error enviando token al backend: $e');
+  }
+}
   /// Método público para registrar token después del login/restaurar sesión
   Future<void> registrarTokenDespuesDeLogin() async {
     if (kIsWeb) {

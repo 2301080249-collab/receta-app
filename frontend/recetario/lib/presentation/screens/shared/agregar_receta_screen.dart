@@ -10,6 +10,11 @@ import '../../../core/utils/token_manager.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../providers/portafolio_provider.dart';
 import '../../../data/models/portafolio.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:path/path.dart' as path;
+import '../../../config/env.dart';
 
 /// Pantalla para agregar o editar recetas propias
 class AgregarRecetaScreen extends StatefulWidget {
@@ -179,57 +184,79 @@ class _AgregarRecetaScreenState extends State<AgregarRecetaScreen> {
       _mostrarError('Error al seleccionar la imagen');
     }
   }
-
-  Future<String?> _subirImagen() async {
+Future<String?> _subirImagen() async {
     try {
-      final userId = await TokenManager.getUserId();
-      if (userId == null) {
-        throw Exception('No hay usuario autenticado');
+      print('📤 Subiendo imagen al backend...');
+      
+      final authToken = await TokenManager.getToken();
+      if (authToken == null) {
+        throw Exception('No hay token de autenticación');
       }
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final uri = Uri.parse('${Env.backendUrl}/api/portafolio/upload-imagen');
+      final request = http.MultipartRequest('POST', uri);
 
-      Uint8List bytes;
-      String extension = 'jpg';
+      // Headers
+    request.headers['Authorization'] = 'Bearer $authToken';
 
       if (kIsWeb) {
+        // WEB: Usar MultipartFile.fromBytes directamente
         if (_imagenSeleccionadaWeb == null) {
-          throw Exception('No hay imagen seleccionada (web)');
+          throw Exception('No hay imagen seleccionada');
         }
-        bytes = _imagenSeleccionadaWeb!;
-        if (_nombreArchivo != null) {
-          extension = _nombreArchivo!.split('.').last.toLowerCase();
-        }
+        
+        final fileName = _nombreArchivo ?? 'imagen_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final ext = path.extension(fileName).toLowerCase();
+        final contentType = ext == '.png' ? 'image/png' : 'image/jpeg';
+
+        request.files.add(http.MultipartFile.fromBytes(
+          'file',
+          _imagenSeleccionadaWeb!,
+          filename: fileName,
+          contentType: MediaType.parse(contentType),
+        ));
+
+        print('📤 [WEB] Enviando a: $uri');
+        print('📄 Archivo: $fileName');
       } else {
+        // MÓVIL: Usar fromPath como siempre
         if (_imagenSeleccionadaMovil == null) {
-          throw Exception('No hay imagen seleccionada (móvil)');
+          throw Exception('No hay imagen seleccionada');
         }
-        bytes = await _imagenSeleccionadaMovil!.readAsBytes();
-        extension = _imagenSeleccionadaMovil!.path.split('.').last.toLowerCase();
+
+        final fileName = path.basename(_imagenSeleccionadaMovil!.path);
+        final ext = path.extension(fileName).toLowerCase();
+        final contentType = ext == '.png' ? 'image/png' : 'image/jpeg';
+
+        request.files.add(await http.MultipartFile.fromPath(
+          'file',
+          _imagenSeleccionadaMovil!.path,
+          contentType: MediaType.parse(contentType),
+        ));
+
+        print('📤 [MÓVIL] Enviando a: $uri');
+        print('📄 Archivo: $fileName');
       }
 
-      final fileName = 'receta_${timestamp}.$extension';
-      final path = 'portafolio/$userId/$fileName';
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-      final client = Supabase.instance.client;
-      
-      await client.storage.from('archivos').uploadBinary(
-            path,
-            bytes,
-            fileOptions: FileOptions(
-              cacheControl: '3600',
-              upsert: false,
-              contentType: 'image/$extension',
-            ),
-          );
+      print('📊 Status: ${response.statusCode}');
+      print('📋 Response: ${response.body}');
 
-      final url = client.storage.from('archivos').getPublicUrl(path);
-      return url;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        final url = data['url'];
+        print('✅ Imagen subida exitosamente: $url');
+        return url;
+      } else {
+        throw Exception('Error al subir imagen: ${response.statusCode} - ${response.body}');
+      }
     } catch (e) {
+      print('❌ ERROR DETALLADO en _subirImagen: $e');
       return null;
     }
   }
-
   Future<void> _eliminarImagenAntigua(String urlImagen) async {
     try {
       final userId = await TokenManager.getUserId();
@@ -278,9 +305,7 @@ class _AgregarRecetaScreenState extends State<AgregarRecetaScreen> {
         
         fotoUrl = nuevaFotoUrl;
         
-        if (_imagenActualUrl != null) {
-          await _eliminarImagenAntigua(_imagenActualUrl!);
-        }
+    
       } else {
         fotoUrl = _imagenActualUrl!;
       }
