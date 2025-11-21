@@ -8,4 +8,4 @@ frontend/recetario/pubspec.lock
 docker-compose.yml
 frontend/recetario/.env
 .DS_Store
-*.png
+#*.png
