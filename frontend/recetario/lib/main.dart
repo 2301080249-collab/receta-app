@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,6 +9,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // Config
 import 'config/routes.dart';
+import 'config/env.dart';
 
 // Core
 import 'core/theme/app_theme.dart';
@@ -38,9 +38,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Cargar variables de entorno
-  await dotenv.load(fileName: ".env");
-
   // ✅ Firebase SOLO en móvil (Android/iOS)
   if (!kIsWeb) {
     try {
@@ -64,8 +61,8 @@ void main() async {
   // Inicializar Supabase (funciona en todas las plataformas)
   try {
     await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_KEY']!,
+      url: Env.supabaseUrl,
+      anonKey: Env.supabaseAnonKey,
     );
     print('✅ Supabase inicializado correctamente');
   } catch (e) {
@@ -108,7 +105,7 @@ class AppInitializer extends StatefulWidget {
 
 class _AppInitializerState extends State<AppInitializer> {
   bool _isInitialized = false;
-  RemoteMessage? _pendingMessage; // 👈 Para guardar mensaje de notificación
+  RemoteMessage? _pendingMessage;
 
   @override
   void initState() {
@@ -117,30 +114,29 @@ class _AppInitializerState extends State<AppInitializer> {
   }
 
   Future<void> _initializeApp() async {
-  try {
-    final authProvider = context.read<AuthProvider>();
-    
-    // 1. Restaurar sesión primero
-    await authProvider.restoreSession().timeout(
-      const Duration(seconds: 10),
-      onTimeout: () {
-        print('⚠️ Timeout restaurando sesión, continuando sin sesión...');
-      },
-    );
+    try {
+      final authProvider = context.read<AuthProvider>();
+      
+      // 1. Restaurar sesión primero
+      await authProvider.restoreSession().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('⚠️ Timeout restaurando sesión, continuando sin sesión...');
+        },
+      );
 
-    // 2. Si hay sesión, manejar mensaje inicial de notificación (solo móvil)
-    if (!kIsWeb && authProvider.isAuthenticated) {
-      // Llamar al nuevo método que maneja la navegación con delay
-      FCMService().handleInitialMessage();
-    }
-  } catch (e) {
-    print('❌ Error restaurando sesión: $e');
-  } finally {
-    if (mounted) {
-      setState(() => _isInitialized = true);
+      // 2. Si hay sesión, manejar mensaje inicial de notificación (solo móvil)
+      if (!kIsWeb && authProvider.isAuthenticated) {
+        FCMService().handleInitialMessage();
+      }
+    } catch (e) {
+      print('❌ Error restaurando sesión: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isInitialized = true);
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -180,7 +176,7 @@ class _AppInitializerState extends State<AppInitializer> {
               if (recetaId != null && mounted) {
                 print('🧭 Navegando a receta pendiente: $recetaId');
                 AppRoutes.navigateToDetalleReceta(context, recetaId);
-                _pendingMessage = null; // Limpiar después de navegar
+                _pendingMessage = null;
               }
             });
           }
@@ -202,7 +198,6 @@ class _AppInitializerState extends State<AppInitializer> {
           initialRoute = AppRoutes.login;
         }
 
-        // ✅ SIEMPRE usar ScreenUtilInit (funciona en web y móvil)
         return ScreenUtilInit(
           designSize: const Size(375, 812),
           minTextAdapt: true,

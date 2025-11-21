@@ -55,16 +55,27 @@ dependencies:
   
   # 🎨 Dialogs profesionales (estilo SweetAlert)
   awesome_dialog: ^3.2.1
-   # ✅ AGREGAR ESTO: HTML multiplataforma
+  
+  # ✅ HTML multiplataforma
   universal_html: ^2.2.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.1  # ← NUEVO
 
 flutter:
   uses-material-design: true
   assets:
     #- .env
     - assets/logo.png
+    - assets/logo-cenfotec.png  # ← NUEVO
+
+# ← NUEVO: Configuración de íconos
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/logo-cenfotec.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo-cenfotec.png"
