@@ -185,78 +185,59 @@ class _AgregarRecetaScreenState extends State<AgregarRecetaScreen> {
     }
   }
 Future<String?> _subirImagen() async {
-    try {
-      print('📤 Subiendo imagen al backend...');
-      
-      final authToken = await TokenManager.getToken();
-      if (authToken == null) {
-        throw Exception('No hay token de autenticación');
-      }
+  try {
+    print('📤 Subiendo imagen al backend...');
+    
+    final authToken = await TokenManager.getToken();
+    if (authToken == null) {
+      throw Exception('No hay token de autenticación');
+    }
 
-      final uri = Uri.parse('${Env.backendUrl}/api/portafolio/upload-imagen');
-      final request = http.MultipartRequest('POST', uri);
-
-      // Headers
+    final uri = Uri.parse('${Env.backendUrl}/api/portafolio/upload-imagen');
+    final request = http.MultipartRequest('POST', uri);
     request.headers['Authorization'] = 'Bearer $authToken';
 
-      if (kIsWeb) {
-        // WEB: Usar MultipartFile.fromBytes directamente
-        if (_imagenSeleccionadaWeb == null) {
-          throw Exception('No hay imagen seleccionada');
-        }
-        
-        final fileName = _nombreArchivo ?? 'imagen_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final ext = path.extension(fileName).toLowerCase();
-        final contentType = ext == '.png' ? 'image/png' : 'image/jpeg';
+    if (kIsWeb) {
+      if (_imagenSeleccionadaWeb == null) {
+        throw Exception('No hay imagen seleccionada');
+      }
+      
+      final fileName = _nombreArchivo ?? 'imagen.jpg';
+      final ext = path.extension(fileName).toLowerCase();
+      final contentType = ext == '.png' ? 'image/png' : 'image/jpeg';
 
-        request.files.add(http.MultipartFile.fromBytes(
-          'file',
-          _imagenSeleccionadaWeb!,
-          filename: fileName,
-          contentType: MediaType.parse(contentType),
-        ));
-
-        print('📤 [WEB] Enviando a: $uri');
-        print('📄 Archivo: $fileName');
-      } else {
-        // MÓVIL: Usar fromPath como siempre
-        if (_imagenSeleccionadaMovil == null) {
-          throw Exception('No hay imagen seleccionada');
-        }
-
-        final fileName = path.basename(_imagenSeleccionadaMovil!.path);
-        final ext = path.extension(fileName).toLowerCase();
-        final contentType = ext == '.png' ? 'image/png' : 'image/jpeg';
-
-        request.files.add(await http.MultipartFile.fromPath(
-          'file',
-          _imagenSeleccionadaMovil!.path,
-          contentType: MediaType.parse(contentType),
-        ));
-
-        print('📤 [MÓVIL] Enviando a: $uri');
-        print('📄 Archivo: $fileName');
+      request.files.add(http.MultipartFile.fromBytes(
+        'file',
+        _imagenSeleccionadaWeb!,
+        filename: fileName,
+        contentType: MediaType.parse(contentType),
+      ));
+    } else {
+      if (_imagenSeleccionadaMovil == null) {
+        throw Exception('No hay imagen seleccionada');
       }
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      print('📊 Status: ${response.statusCode}');
-      print('📋 Response: ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = json.decode(response.body);
-        final url = data['url'];
-        print('✅ Imagen subida exitosamente: $url');
-        return url;
-      } else {
-        throw Exception('Error al subir imagen: ${response.statusCode} - ${response.body}');
-      }
-    } catch (e) {
-      print('❌ ERROR DETALLADO en _subirImagen: $e');
-      return null;
+      request.files.add(await http.MultipartFile.fromPath(
+        'file',
+        _imagenSeleccionadaMovil!.path,
+        contentType: MediaType.parse(path.extension(_imagenSeleccionadaMovil!.path) == '.png' ? 'image/png' : 'image/jpeg'),
+      ));
     }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = json.decode(response.body);
+      return data['url'];
+    }
+    
+    throw Exception('Error: ${response.statusCode}');
+  } catch (e) {
+    print('❌ Error: $e');
+    return null;
   }
+}
   Future<void> _eliminarImagenAntigua(String urlImagen) async {
     try {
       final userId = await TokenManager.getUserId();
