@@ -2,24 +2,30 @@ import 'package:flutter/material.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/routes.dart';
-import '../../presentation/layouts/estudiante_main_layout.dart';
-import '../../presentation/layouts/docente_main_layout.dart';
 import 'package:provider/provider.dart';
 import 'notification_bell.dart';
+// ✅ NECESITAS IMPORTAR ESTOS LAYOUTS
+import '../../presentation/layouts/estudiante_main_layout.dart';
+import '../../presentation/layouts/docente_main_layout.dart';
 
 class CustomAppHeader extends StatelessWidget {
   final String? selectedMenu;
+  final bool fromCursoDetalle; // ✅ NUEVO: indica si viene desde detalle de curso
 
   const CustomAppHeader({
     Key? key,
     this.selectedMenu,
+    this.fromCursoDetalle = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userRole = userProvider.getRolActual() ?? 'estudiante';
+    
+    // ✅ FIX: Usar authProvider.currentUser.rol directamente
+    final userRole = authProvider.currentUser?.rol ?? 'estudiante';
+    print('🔍 CustomAppHeader - Rol detectado: $userRole');
     
     String userInitial = 'U';
     String userName = 'Usuario';
@@ -119,7 +125,7 @@ class CustomAppHeader extends StatelessWidget {
             
             if (!isMobile) ...[
               TextButton(
-                onPressed: () => _navegarAPortafolio(context, userRole),
+                onPressed: () => _navegarConPopUntil(context, userRole, 0),
                 style: TextButton.styleFrom(
                   backgroundColor: selectedMenu == 'portafolio' 
                       ? Colors.blue[50] 
@@ -141,7 +147,7 @@ class CustomAppHeader extends StatelessWidget {
               ),
               
               TextButton(
-                onPressed: () => _navegarACursos(context, userRole),
+                onPressed: () => _navegarConPopUntil(context, userRole, 1),
                 style: TextButton.styleFrom(
                   backgroundColor: selectedMenu == 'cursos' 
                       ? Colors.blue[50] 
@@ -161,6 +167,21 @@ class CustomAppHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              
+              TextButton(
+                onPressed: () => _navegarConPopUntil(context, userRole, 2),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text(
+                  'Horario',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ),
             ] else ...[
               IconButton(
                 icon: Icon(
@@ -170,7 +191,7 @@ class CustomAppHeader extends StatelessWidget {
                       ? Colors.blue[700] 
                       : Colors.grey[700],
                 ),
-                onPressed: () => _navegarAPortafolio(context, userRole),
+                onPressed: () => _navegarConPopUntil(context, userRole, 0),
                 tooltip: 'Portafolio',
                 style: IconButton.styleFrom(
                   backgroundColor: selectedMenu == 'portafolio' 
@@ -187,13 +208,23 @@ class CustomAppHeader extends StatelessWidget {
                       ? Colors.blue[700] 
                       : Colors.grey[700],
                 ),
-                onPressed: () => _navegarACursos(context, userRole),
+                onPressed: () => _navegarConPopUntil(context, userRole, 1),
                 tooltip: 'Cursos',
                 style: IconButton.styleFrom(
                   backgroundColor: selectedMenu == 'cursos' 
                       ? Colors.blue[50] 
                       : null,
                 ),
+              ),
+              
+              IconButton(
+                icon: const Icon(
+                  Icons.schedule_outlined,
+                  size: 22,
+                ),
+                onPressed: () => _navegarConPopUntil(context, userRole, 2),
+                tooltip: 'Horario',
+                color: Colors.grey[700],
               ),
             ],
             
@@ -324,39 +355,33 @@ class CustomAppHeader extends StatelessWidget {
     );
   }
 
-  // ✅ NAVEGACIÓN DIRECTA CON WIDGETS
-  void _navegarAPortafolio(BuildContext context, String userRole) {
-    if (selectedMenu == 'portafolio') return;
+  // ✅ SOLUCIÓN DEFINITIVA: Navegar directamente sin popUntil
+  void _navegarConPopUntil(BuildContext context, String userRole, int tabIndex) {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('🚀 NAVEGACIÓN INICIADA');
+    print('🚀 Tab destino: $tabIndex');
+    print('🚀 Desde curso detalle: $fromCursoDetalle');
+    print('🚀 User role: $userRole');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
-    Widget destino;
-    if (userRole == 'docente') {
-      destino = const DocenteMainLayout(initialIndex: 0);
-    } else {
-      destino = const EstudianteMainLayout(initialIndex: 0);
-    }
-    
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => destino),
-      (route) => false,
+    // ✅ SIMPLEMENTE REEMPLAZAR TODA LA PILA CON EL NUEVO MAINLAYOUT
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) {
+          print('🏗️ Construyendo nuevo ${userRole}MainLayout con initialIndex=$tabIndex');
+          return userRole == 'docente'
+              ? DocenteMainLayout(initialIndex: tabIndex)
+              : EstudianteMainLayout(initialIndex: tabIndex);
+        },
+        settings: RouteSettings(name: '${userRole}MainLayout'),
+      ),
+      (route) {
+        print('🗑️ Removiendo ruta: ${route.settings.name}');
+        return false; // ✅ Eliminar TODAS las rutas
+      },
     );
-  }
-
-  void _navegarACursos(BuildContext context, String userRole) {
-    if (selectedMenu == 'cursos') return;
     
-    Widget destino;
-    if (userRole == 'docente') {
-      destino = const DocenteMainLayout(initialIndex: 1);
-    } else {
-      destino = const EstudianteMainLayout(initialIndex: 1);
-    }
-    
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => destino),
-      (route) => false,
-    );
+    print('✅ pushAndRemoveUntil ejecutado');
   }
 
   void _cerrarSesion(BuildContext context) async {
@@ -374,7 +399,7 @@ class CustomAppHeader extends StatelessWidget {
           ],
         ),
         content: const Text(
-          '¿Estás seguro de que deseas cergar sesión?',
+          '¿Estás seguro de que deseas cerrar sesión?',
           style: TextStyle(fontSize: 14),
         ),
         actions: [

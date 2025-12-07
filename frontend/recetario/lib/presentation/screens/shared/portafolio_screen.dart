@@ -1059,19 +1059,7 @@ class _PortafolioScreenState extends State<PortafolioScreen>
             subtitle,
             style: const TextStyle(fontSize: 16, color: Colors.grey),
           ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: _irAAgregarReceta,
-            icon: const Icon(Icons.add),
-            label: const Text('Agregar Receta'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF9800),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 32,
-                vertical: 16,
-              ),
-            ),
-          ),
+         
         ],
       ),
     );

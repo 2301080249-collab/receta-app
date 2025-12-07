@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Config
 import 'config/routes.dart';
@@ -37,6 +38,15 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔥 CARGAR .env PRIMERO
+  try {
+    await dotenv.load(fileName: ".env");
+    print('✅ .env cargado correctamente');
+    print('🔑 GEMINI KEY: ${dotenv.env['GEMINI_API_KEY']?.substring(0, 20)}...');
+  } catch (e) {
+    print('❌ Error cargando .env: $e');
+  }
 
   // ✅ Firebase SOLO en móvil (Android/iOS)
   if (!kIsWeb) {

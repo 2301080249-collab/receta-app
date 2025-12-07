@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../screens/estudiante/home_estudiante_screen.dart';
+import '../screens/estudiante/horario_estudiante_screen.dart';
 import '../screens/shared/portafolio_screen.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -17,7 +18,7 @@ class EstudianteMainLayout extends StatefulWidget {
   
   const EstudianteMainLayout({
     Key? key,
-    this.initialIndex = 0, // 0 = Portafolio, 1 = Cursos
+    this.initialIndex = 0, // 0 = Portafolio, 1 = Cursos, 2 = Horario
   }) : super(key: key);
 
   @override
@@ -47,13 +48,24 @@ class _EstudianteMainLayoutState extends State<EstudianteMainLayout> {
     }
   }
 
-  // ✅ NUEVO: Método para actualizar la URL (solo funciona en web)
+  // ✅ MODIFICADO: Método para actualizar la URL (ahora con 3 tabs)
   void _updateUrl(int index) {
     if (kIsWeb) {
       try {
-        final newUrl = index == 1 
-            ? '/estudiante/home?tab=1' 
-            : '/estudiante/home'; // Tab 0 (Portafolio) sin parámetro
+        String newUrl;
+        switch (index) {
+          case 0:
+            newUrl = '/estudiante/home'; // Portafolio
+            break;
+          case 1:
+            newUrl = '/estudiante/home?tab=1'; // Cursos
+            break;
+          case 2:
+            newUrl = '/estudiante/home?tab=2'; // Horario
+            break;
+          default:
+            newUrl = '/estudiante/home';
+        }
         
         html.window.history.pushState(null, '', newUrl);
       } catch (e) {
@@ -77,6 +89,7 @@ class _EstudianteMainLayoutState extends State<EstudianteMainLayout> {
               children: const [
                 PortafolioScreen(),
                 HomeEstudianteScreen(showHeader: false),
+                HorarioEstudianteScreen(), // ✅ NUEVA PANTALLA
               ],
             ),
           ),
@@ -203,6 +216,7 @@ class _EstudianteMainLayoutState extends State<EstudianteMainLayout> {
               
               const Spacer(),
               
+              // ✅ MODIFICADO: Agregado botón de Horario
               if (isMobile)
                 Row(
                   children: [
@@ -235,6 +249,24 @@ class _EstudianteMainLayoutState extends State<EstudianteMainLayout> {
                       tooltip: 'Cursos',
                       style: IconButton.styleFrom(
                         backgroundColor: _currentIndex == 1
+                            ? Colors.blue[50]
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    // ✅ NUEVO: Botón de Horario en móvil
+                    IconButton(
+                      onPressed: () => _onTabSelected(2),
+                      icon: Icon(
+                        Icons.calendar_today_outlined,
+                        size: 20,
+                        color: _currentIndex == 2
+                            ? Colors.blue[700]
+                            : Colors.grey[600],
+                      ),
+                      tooltip: 'Horario',
+                      style: IconButton.styleFrom(
+                        backgroundColor: _currentIndex == 2
                             ? Colors.blue[50]
                             : null,
                       ),
@@ -282,6 +314,29 @@ class _EstudianteMainLayoutState extends State<EstudianteMainLayout> {
                               ? Colors.blue[700]
                               : Colors.black87,
                           fontWeight: _currentIndex == 1
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    // ✅ NUEVO: Botón de Horario en desktop
+                    TextButton(
+                      onPressed: () => _onTabSelected(2),
+                      style: TextButton.styleFrom(
+                        backgroundColor: _currentIndex == 2
+                            ? Colors.blue[50]
+                            : null,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                      child: Text(
+                        'Horario',
+                        style: TextStyle(
+                          color: _currentIndex == 2
+                              ? Colors.blue[700]
+                              : Colors.black87,
+                          fontWeight: _currentIndex == 2
                               ? FontWeight.w600
                               : FontWeight.normal,
                           fontSize: 13,

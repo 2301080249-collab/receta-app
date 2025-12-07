@@ -11,6 +11,7 @@ import '../presentation/screens/auth/change_password_screen.dart';
 import '../presentation/screens/admin/admin_layout.dart';
 import '../presentation/screens/admin/matriculas_screen.dart';
 import '../presentation/screens/admin/crear_usuario_screen.dart';
+import '../presentation/screens/admin/dashboard_analytics_screen.dart'; // ← NUEVO
 
 // Layouts
 import '../presentation/layouts/estudiante_main_layout.dart';
@@ -29,6 +30,7 @@ class AppRoutes {
 
   // ==================== RUTAS DE ADMIN ====================
   static const String adminDashboard = '/admin/dashboard';
+  static const String dashboardAnalytics = '/admin/dashboard-analytics'; // ← NUEVO
   static const String matriculas = '/admin/matriculas';
   static const String crearUsuario = '/admin/crear-usuario';
 
@@ -54,6 +56,12 @@ class AppRoutes {
         child: const AdminLayout(),
       ),
       
+      // ← NUEVO: RUTA DEL DASHBOARD ANALYTICS
+      dashboardAnalytics: (context) => ProtectedRoute(
+        allowedRoles: const ['administrador'],
+        child: const DashboardAnalyticsScreen(),
+      ),
+      
       matriculas: (context) => ProtectedRoute(
         allowedRoles: const ['administrador'],
         child: const MatriculasScreen(),
@@ -66,8 +74,7 @@ class AppRoutes {
 
       // ==================== ESTUDIANTE (PROTEGIDO - SOLO ESTUDIANTES) ====================
       estudianteHome: (context) {
-        // ✅ NUEVO: Obtener el parámetro 'tab' de la URL (solo en web)
-        int initialIndex = 1; // Default: tab de Cursos
+        int initialIndex = 1;
         
         if (kIsWeb) {
           try {
@@ -75,7 +82,6 @@ class AppRoutes {
             final tabParam = uri.queryParameters['tab'];
             initialIndex = int.tryParse(tabParam ?? '1') ?? 1;
           } catch (e) {
-            // Si hay error, usar el índice por defecto
             initialIndex = 1;
           }
         }
@@ -83,15 +89,14 @@ class AppRoutes {
         return ProtectedRoute(
           allowedRoles: const ['estudiante'],
           child: EstudianteMainLayout(
-            initialIndex: initialIndex, // ✅ Usar el índice de la URL
+            initialIndex: initialIndex,
           ),
         );
       },
 
       // ==================== DOCENTE (PROTEGIDO - SOLO DOCENTES) ====================
       docenteHome: (context) {
-        // ✅ NUEVO: Obtener el parámetro 'tab' de la URL (solo en web)
-        int initialIndex = 1; // Default: tab de Cursos
+        int initialIndex = 1;
         
         if (kIsWeb) {
           try {
@@ -99,7 +104,6 @@ class AppRoutes {
             final tabParam = uri.queryParameters['tab'];
             initialIndex = int.tryParse(tabParam ?? '1') ?? 1;
           } catch (e) {
-            // Si hay error, usar el índice por defecto
             initialIndex = 1;
           }
         }
@@ -107,7 +111,7 @@ class AppRoutes {
         return ProtectedRoute(
           allowedRoles: const ['docente'],
           child: DocenteMainLayout(
-            initialIndex: initialIndex, // ✅ Usar el índice de la URL
+            initialIndex: initialIndex,
           ),
         );
       },
@@ -125,7 +129,6 @@ class AppRoutes {
 
   // ==================== NAVEGACIÓN CON ARGUMENTOS ====================
 
-  /// Configurar rutas que requieren argumentos
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case changePassword:
@@ -147,7 +150,6 @@ class AppRoutes {
 
   // ==================== MÉTODOS AUXILIARES ====================
 
-  /// Navegar según el rol del usuario
   static String getRouteByRole(String rol) {
     switch (rol.toLowerCase()) {
       case 'administrador':
@@ -162,7 +164,6 @@ class AppRoutes {
     }
   }
 
-  /// Navegar a cambio de contraseña
   static Future<void> navigateToChangePassword(
     BuildContext context, {
     required String userId,
@@ -175,42 +176,40 @@ class AppRoutes {
     );
   }
 
-  /// Navegar al dashboard según rol (después de login exitoso)
   static Future<void> navigateToDashboard(BuildContext context, String rol) {
     final route = getRouteByRole(rol);
     return Navigator.pushReplacementNamed(context, route);
   }
 
-  /// Regresar al login (limpia el stack de navegación)
   static Future<void> logout(BuildContext context) {
     return Navigator.pushNamedAndRemoveUntil(context, login, (route) => false);
   }
 
   // ==================== NAVEGACIÓN ADMIN ====================
 
-  /// Navegar a gestión de matrículas
   static Future<void> navigateToMatriculas(BuildContext context) {
     return Navigator.pushNamed(context, matriculas);
   }
 
-  /// Navegar a crear usuario
   static Future<void> navigateToCrearUsuario(BuildContext context) {
     return Navigator.pushNamed(context, crearUsuario);
   }
 
+  // ← NUEVO: MÉTODO PARA NAVEGAR AL DASHBOARD ANALYTICS
+  static Future<void> navigateToDashboardAnalytics(BuildContext context) {
+    return Navigator.pushNamed(context, dashboardAnalytics);
+  }
+
   // ==================== NAVEGACIÓN PORTAFOLIO ====================
 
-  /// Navegar al portafolio
   static Future<void> navigateToPortafolio(BuildContext context) {
     return Navigator.pushNamed(context, portafolio);
   }
 
-  /// Navegar a agregar receta
   static Future<void> navigateToAgregarReceta(BuildContext context) {
     return Navigator.pushNamed(context, agregarReceta);
   }
 
-  /// Navegar a detalle de receta (con parámetro)
   static Future<void> navigateToDetalleReceta(
     BuildContext context,
     String recetaId,

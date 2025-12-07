@@ -636,87 +636,89 @@ Future<String?> _subirImagen() async {
                         _buildVisibilidadSelector(),
                         const SizedBox(height: 20),
 
-                        if (_esEdicion)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isUploading ? null : () => Navigator.pop(context),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    side: const BorderSide(color: Color(0xFF37474F)),
-                                  ),
-                                  child: const Text(
-                                    'Cancelar',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF37474F),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _isUploading ? null : _guardarReceta,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFF9800),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: _isUploading
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Actualizar',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          ElevatedButton(
-                            onPressed: _isUploading ? null : _guardarReceta,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF9800),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: _isUploading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  )
-                                : const Text(
-                                    'Publicar Receta',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
+                      if (_esEdicion)
+  Row(
+    children: [
+      Expanded(
+        child: OutlinedButton(
+          onPressed: _isUploading ? null : () => Navigator.pop(context),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            side: const BorderSide(color: Color(0xFF37474F)),
+          ),
+          child: const Text(
+            'Cancelar',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF37474F),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: ElevatedButton(
+          onPressed: _isUploading ? null : _guardarReceta,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF37474F), // ✅ CAMBIO AQUÍ
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _isUploading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text(
+                  'Actualizar',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white, // ✅ Asegurar texto blanco
+                  ),
+                ),
+        ),
+      ),
+    ],
+  )
+else
+  ElevatedButton(
+    onPressed: _isUploading ? null : _guardarReceta,
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF37474F), // ✅ CAMBIO AQUÍ
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+    child: _isUploading
+        ? const SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          )
+        : const Text(
+            'Publicar Receta',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white, // ✅ Asegurar texto blanco
+            ),
+          ),
+  ),
                       ],
                     ),
                   ),
@@ -865,84 +867,83 @@ Future<String?> _subirImagen() async {
     );
   }
 
-  Widget _buildCategoriaSelector() {
-    return Consumer<PortafolioProvider>(
-      builder: (context, provider, _) {
-        if (provider.categorias.isEmpty) {
-          return const LinearProgressIndicator();
-        }
+ Widget _buildCategoriaSelector() {
+  return Consumer<PortafolioProvider>(
+    builder: (context, provider, _) {
+      if (provider.categorias.isEmpty) {
+        return const LinearProgressIndicator();
+      }
 
-        return DropdownButtonFormField<String>(
-          value: _categoriaSeleccionada,
-          decoration: InputDecoration(
-            labelText: 'Categoría',
-            prefixIcon: const Icon(Icons.category, size: 22),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2),
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      return DropdownButtonFormField<String>(
+        value: _categoriaSeleccionada,
+        decoration: InputDecoration(
+          labelText: 'Categoría',
+          prefixIcon: const Icon(Icons.category, size: 22),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
           ),
-          items: provider.categorias.map((categoria) {
-            return DropdownMenuItem(
-              value: categoria.id,
-              child: Row(
-                children: [
-                  if (categoria.icono != null) Text(categoria.icono!, style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Text(categoria.nombre, style: const TextStyle(fontSize: 15)),
-                ],
-              ),
-            );
-          }).toList(),
-          onChanged: (value) {
-            setState(() => _categoriaSeleccionada = value);
-          },
-          validator: (value) {
-            if (value == null) {
-              return 'Selecciona una categoría';
-            }
-            return null;
-          },
-        );
-      },
-    );
-  }
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF37474F), width: 2), // ✅ CAMBIO
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        items: provider.categorias.map((categoria) {
+          return DropdownMenuItem(
+            value: categoria.id,
+            child: Row(
+              children: [
+                if (categoria.icono != null) Text(categoria.icono!, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Text(categoria.nombre, style: const TextStyle(fontSize: 15)),
+              ],
+            ),
+          );
+        }).toList(),
+        onChanged: (value) {
+          setState(() => _categoriaSeleccionada = value);
+        },
+        validator: (value) {
+          if (value == null) {
+            return 'Selecciona una categoría';
+          }
+          return null;
+        },
+      );
+    },
+  );
+}
 
   Widget _buildVisibilidadSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildVisibilidadChip(
-            label: 'Pública',
-            icon: Icons.public,
-            value: 'publica',
-            color: const Color(0xFF2196F3),
-          ),
+  return Row(
+    children: [
+      Expanded(
+        child: _buildVisibilidadChip(
+          label: 'Pública',
+          icon: Icons.public,
+          value: 'publica',
+          color: const Color(0xFF2196F3), // ✅ Azul vibrante (sin cambios)
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildVisibilidadChip(
-            label: 'Privada',
-            icon: Icons.lock,
-            value: 'privada',
-            color: const Color(0xFF9E9E9E),
-          ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: _buildVisibilidadChip(
+          label: 'Privada',
+          icon: Icons.lock,
+          value: 'privada',
+          color: const Color(0xFF607D8B), // ✅ CAMBIO: Gris azulado elegante
         ),
-      ],
-    );
-  }
-
+      ),
+    ],
+  );
+}
   Widget _buildVisibilidadChip({
     required String label,
     required IconData icon,

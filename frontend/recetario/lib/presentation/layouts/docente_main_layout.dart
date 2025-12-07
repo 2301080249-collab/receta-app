@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
 import '../screens/docente/home_docente_screen.dart';
 import '../screens/shared/portafolio_screen.dart';
+import '../screens/docente/horario_docente_screen.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/routes.dart';
@@ -17,7 +18,7 @@ class DocenteMainLayout extends StatefulWidget {
   
   const DocenteMainLayout({
     Key? key,
-    this.initialIndex = 0, // 0 = Portafolio, 1 = Cursos
+    this.initialIndex = 0, // 0 = Portafolio, 1 = Cursos, 2 = Horario
   }) : super(key: key);
 
   @override
@@ -26,37 +27,74 @@ class DocenteMainLayout extends StatefulWidget {
 
 class _DocenteMainLayoutState extends State<DocenteMainLayout> {
   late int _currentIndex;
+  // ✅ NUEVO: Key única para forzar reconstrucción
+  late Key _portafolioKey;
+  late Key _cursosKey;
+  late Key _horarioKey;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _regenerarKeys();
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('🟢 DocenteMainLayout.initState()');
+    print('🟢 initialIndex: $_currentIndex');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 
-  // ✅ MODIFICADO: Actualizar URL al cambiar de tab
+  // ✅ NUEVO: Regenerar keys para forzar rebuild
+  void _regenerarKeys() {
+    _portafolioKey = UniqueKey();
+    _cursosKey = UniqueKey();
+    _horarioKey = UniqueKey();
+  }
+
+  @override
+  void didUpdateWidget(DocenteMainLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // ✅ Si cambió el initialIndex, cambiar tab y regenerar keys
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      setState(() {
+        _currentIndex = widget.initialIndex;
+        _regenerarKeys();
+      });
+      print('🔄 initialIndex cambió a: $_currentIndex - Keys regenerados');
+    }
+  }
+
   void _onTabSelected(int index) {
     if (_currentIndex != index) {
       setState(() {
         _currentIndex = index;
+        _regenerarKeys(); // ✅ Regenerar keys al cambiar tab
       });
       
-      // ✅ NUEVO: Actualizar URL en web sin recargar
       if (kIsWeb) {
         _updateUrl(index);
       }
     }
   }
 
-  // ✅ NUEVO: Método para actualizar la URL
   void _updateUrl(int index) {
     try {
-      final newUrl = index == 1 
-          ? '/docente/home?tab=1' 
-          : '/docente/home'; // Tab 0 (Portafolio) sin parámetro
+      String newUrl;
+      switch (index) {
+        case 0:
+          newUrl = '/docente/home';
+          break;
+        case 1:
+          newUrl = '/docente/home?tab=1';
+          break;
+        case 2:
+          newUrl = '/docente/home?tab=2';
+          break;
+        default:
+          newUrl = '/docente/home';
+      }
       
       html.window.history.pushState(null, '', newUrl);
     } catch (e) {
-      // Ignorar errores en plataformas no-web
       print('⚠️ Error actualizando URL: $e');
     }
   }
@@ -72,9 +110,20 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
-              children: const [
-                PortafolioScreen(),
-                HomeDocenteScreen(showHeader: false),
+              children: [
+                // ✅ Cada widget tiene key única que se regenera
+                KeyedSubtree(
+                  key: _portafolioKey,
+                  child: const PortafolioScreen(),
+                ),
+                KeyedSubtree(
+                  key: _cursosKey,
+                  child: const HomeDocenteScreen(showHeader: false),
+                ),
+                KeyedSubtree(
+                  key: _horarioKey,
+                  child: const HorarioDocenteScreen(),
+                ),
               ],
             ),
           ),
@@ -87,7 +136,6 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
-    // Obtener nombre e inicial
     String userInitial = 'D';
     String userName = 'Usuario';
     String userRole = 'docente';
@@ -237,6 +285,23 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
                             : null,
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: () => _onTabSelected(2),
+                      icon: Icon(
+                        Icons.schedule_outlined,
+                        size: 20,
+                        color: _currentIndex == 2
+                            ? Colors.blue[700]
+                            : Colors.grey[600],
+                      ),
+                      tooltip: 'Horario',
+                      style: IconButton.styleFrom(
+                        backgroundColor: _currentIndex == 2
+                            ? Colors.blue[50]
+                            : null,
+                      ),
+                    ),
                   ],
                 )
               else
@@ -286,6 +351,28 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
                         ),
                       ),
                     ),
+                    TextButton(
+                      onPressed: () => _onTabSelected(2),
+                      style: TextButton.styleFrom(
+                        backgroundColor: _currentIndex == 2
+                            ? Colors.blue[50]
+                            : null,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
+                      child: Text(
+                        'Horario',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _currentIndex == 2
+                              ? Colors.blue[700]
+                              : Colors.black87,
+                          fontWeight: _currentIndex == 2
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               
@@ -295,7 +382,6 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
               
               SizedBox(width: isMobile ? 4 : 8),
               
-              // ✅ Avatar con menú desplegable
               PopupMenuButton<String>(
                 offset: const Offset(0, 50),
                 shape: RoundedRectangleBorder(
@@ -341,7 +427,6 @@ class _DocenteMainLayoutState extends State<DocenteMainLayout> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        // ✅ Mostrar código del usuario
                         Consumer<UserProvider>(
                           builder: (context, userProv, _) {
                             String? codigo;

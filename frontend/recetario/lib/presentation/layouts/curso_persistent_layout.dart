@@ -4,6 +4,8 @@ import '../../data/models/tema.dart';
 import '../../data/repositories/tema_repository.dart';
 import '../widgets/CursoSidebarWidget.dart';
 import '../widgets/custom_app_header.dart';
+// Al inicio del archivo, agrega:
+import '../../data/services/tema_service.dart'; // ✅ AGREGAR
 
 /// Layout persistente para mantener fijos el header, pestañas y sidebar
 /// ✅ OPTIMIZADO: Evita llamadas API duplicadas
@@ -134,14 +136,21 @@ class _CursoPersistentLayoutState extends State<CursoPersistentLayout>
   }
 
   // ✅ Función para recargar manualmente (cuando se crea/edita un tema)
-  Future<void> _cargarTemas() async {
-    print('🔄 Recarga manual solicitada...');
-    setState(() {
-      _temasYaCargados = false; // Permitir recarga
-      _isLoadingTemas = false;
-    });
-    await _cargarTemasOptimizado();
-  }
+ // Línea ~125-132
+
+// ✅ Función para recargar manualmente (cuando se crea/edita un tema)
+Future<void> _cargarTemas() async {
+  print('🔄 Recarga manual solicitada...');
+  
+  // ✅ INVALIDAR CACHE ANTES DE RECARGAR
+  TemaService.invalidarCacheTemas(widget.curso.id);
+  
+  setState(() {
+    _temasYaCargados = false; // Permitir recarga
+    _isLoadingTemas = false;
+  });
+  await _cargarTemasOptimizado();
+}
 
   void _toggleSidebar() {
     setState(() {

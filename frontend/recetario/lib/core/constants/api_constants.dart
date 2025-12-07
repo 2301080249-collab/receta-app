@@ -1,5 +1,11 @@
 /// Constantes para endpoints y configuración de API
+import '../../config/env.dart';
+
 class ApiConstants {
+  // ==================== 🌐 BASE URL ====================
+  // ✅ NUEVO: URL base de tu backend
+ static String get baseUrl => Env.backendUrl;
+  
   // ==================== BASE PATHS ====================
   static const String auth = '/api/auth';
   static const String admin = '/api/admin';
@@ -41,6 +47,8 @@ class ApiConstants {
   static const String crearMatricula = '$admin/matriculas';
   static const String crearMatriculaMasiva = '$admin/matriculas/masiva';
   static const String estudiantesDisponibles = '$admin/matriculas/disponibles';
+  // ✅ NUEVA LÍNEA:
+  static String exportarParticipantes(String cursoId) => '$admin/cursos/$cursoId/participantes/export';
 
   // ==================== TEMAS ✨ ====================
   static const String temas = '/api/temas';
@@ -55,6 +63,10 @@ class ApiConstants {
   // ==================== ENTREGAS ✨ ====================
   static const String entregas = '/api/entregas';
 
+  // ==================== ✅ HORARIO ====================
+  static String horarioDocente(String docenteId) => '/api/horario/docente/$docenteId';
+  static String horarioEstudiante(String estudianteId) => '/api/horario/estudiante/$estudianteId';
+
   // ==================== ESTADÍSTICAS ====================
   static const String estadisticas = '$admin/estadisticas';
   static const String dashboardStats = '$admin/dashboard/stats';
@@ -67,7 +79,7 @@ class ApiConstants {
   
   // Detalle de receta
   static String portafolioDetalle(String id) => '/api/portafolio/$id';
-  static String actualizarPortafolio(String id) => '/api/portafolio/$id'; // ⬅️ ✨ NUEVO
+  static String actualizarPortafolio(String id) => '/api/portafolio/$id';
   static String eliminarPortafolio(String id) => '/api/portafolio/$id';
   
   // Likes

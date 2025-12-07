@@ -155,12 +155,45 @@ func (r *usuarioRepository) GetUserByIDWithRelations(userID string) ([]byte, err
 }
 
 func (r *usuarioRepository) GetEstudiantesDisponibles(cursoID, cicloID string) ([]byte, error) {
-	// Obtener todos los estudiantes activos
-	url := config.AppConfig.SupabaseURL + "/rest/v1/usuarios?rol=eq.estudiante&activo=eq.true&select=*"
+	// ✅ Consultar tabla estudiantes directamente (con JOIN a usuarios)
+	// Así garantizamos que SÍ existen en tabla estudiantes
+	url := config.AppConfig.SupabaseURL +
+		"/rest/v1/estudiantes?" +
+		"select=id,usuario_id,codigo_estudiante,ciclo_actual,seccion," +
+		"usuarios!inner(id,nombre_completo,email,codigo,activo)" +
+		"&usuarios.activo=eq.true"
 
 	headers := r.client.GetAuthHeaders()
 
-	return r.client.DoRequest("GET", url, nil, headers)
+	respBody, err := r.client.DoRequest("GET", url, nil, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	// ✅ Transformar respuesta al formato que espera el frontend
+	var estudiantes []map[string]interface{}
+	if err := json.Unmarshal(respBody, &estudiantes); err != nil {
+		return nil, err
+	}
+
+	// Construir array compatible con modelo Usuario de Flutter
+	usuarios := make([]map[string]interface{}, 0)
+	for _, est := range estudiantes {
+		if usuario, ok := est["usuarios"].(map[string]interface{}); ok {
+			// ✅ Agregar campos del estudiante al objeto usuario
+			usuario["estudiantes"] = []map[string]interface{}{
+				{
+					"usuario_id":        est["usuario_id"],
+					"codigo_estudiante": est["codigo_estudiante"],
+					"ciclo_actual":      est["ciclo_actual"],
+					"seccion":           est["seccion"],
+				},
+			}
+			usuarios = append(usuarios, usuario)
+		}
+	}
+
+	return json.Marshal(usuarios)
 }
 
 // ==================== ✅ NUEVOS MÉTODOS PARA PERFIL POR ROL ====================
@@ -382,4 +415,17 @@ func (r *usuarioRepository) getUsuariosParaDocente(userID string, headers map[st
 		fmt.Sprintf("%s/rest/v1/usuarios?id=in.%s&activo=eq.true&select=id,codigo,nombre_completo,rol,avatar_url",
 			config.AppConfig.SupabaseURL, usuariosFilter),
 		nil, headers)
+}
+
+// ==================== ✅ OBTENER TODOS LOS DOCENTES (CORREGIDO) ====================
+
+func (r *usuarioRepository) GetDocentes() ([]byte, error) {
+	// ✅ CAMBIO: Agregar usuario_id para que Flutter pueda usarlo al crear cursos
+	url := config.AppConfig.SupabaseURL + "/rest/v1/docentes?" +
+		"select=id,usuario_id,codigo_docente,especialidad,grado_academico,telefono," +
+		"usuarios!inner(id,nombre_completo,email,codigo)"
+
+	headers := r.client.GetAuthHeaders()
+
+	return r.client.DoRequest("GET", url, nil, headers)
 }

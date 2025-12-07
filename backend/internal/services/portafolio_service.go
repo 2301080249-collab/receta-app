@@ -44,7 +44,7 @@ func (s *PortafolioService) Crear(ctx context.Context, ownerID uuid.UUID, req mo
 	return s.repo.Crear(ctx, ownerID, req)
 }
 
-// ==================== ✨ NUEVO: ACTUALIZAR RECETA ====================
+// ==================== ✅ CORREGIDO: ACTUALIZAR RECETA ====================
 func (s *PortafolioService) Actualizar(ctx context.Context, recetaID, ownerID uuid.UUID, req models.ActualizarPortafolioRequest) (*models.Portafolio, error) {
 	// Verificar que la receta exista y pertenezca al owner
 	recetaExistente, err := s.repo.ObtenerPorID(ctx, recetaID)
@@ -52,9 +52,14 @@ func (s *PortafolioService) Actualizar(ctx context.Context, recetaID, ownerID uu
 		return nil, fmt.Errorf("receta no encontrada: %w", err)
 	}
 
-	if recetaExistente.EstudianteID != ownerID {
+	// ✅ CORREGIDO: Usar UsuarioID en lugar de EstudianteID
+	if recetaExistente.UsuarioID != ownerID {
+		fmt.Printf("❌ [Actualizar] Permiso denegado. Receta.UsuarioID=%s != ownerID=%s\n",
+			recetaExistente.UsuarioID, ownerID)
 		return nil, fmt.Errorf("no tienes permiso para actualizar esta receta")
 	}
+
+	fmt.Printf("✅ [Actualizar] Permiso verificado. UsuarioID=%s\n", ownerID)
 
 	// Actualizar en el repository
 	return s.repo.Actualizar(ctx, recetaID, ownerID, req)
@@ -72,7 +77,7 @@ func (s *PortafolioService) ObtenerPorID(ctx context.Context, id uuid.UUID) (*mo
 	return s.repo.ObtenerPorID(ctx, id)
 }
 
-// ==================== ✨ NUEVO: ELIMINAR CON LIMPIEZA DE STORAGE ====================
+// ==================== ✅ CORREGIDO: ELIMINAR CON LIMPIEZA DE STORAGE ====================
 func (s *PortafolioService) EliminarConStorage(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) error {
 	// 1. Obtener la receta para verificar permisos y obtener URLs de fotos
 	receta, err := s.repo.ObtenerPorID(ctx, id)
@@ -80,9 +85,14 @@ func (s *PortafolioService) EliminarConStorage(ctx context.Context, id uuid.UUID
 		return fmt.Errorf("receta no encontrada: %w", err)
 	}
 
-	if receta.EstudianteID != ownerID {
+	// ✅ CORREGIDO: Usar UsuarioID en lugar de EstudianteID
+	if receta.UsuarioID != ownerID {
+		fmt.Printf("❌ [Eliminar] Permiso denegado. Receta.UsuarioID=%s != ownerID=%s\n",
+			receta.UsuarioID, ownerID)
 		return fmt.Errorf("no tienes permiso para eliminar esta receta")
 	}
+
+	fmt.Printf("✅ [Eliminar] Permiso verificado. UsuarioID=%s\n", ownerID)
 
 	// 2. Eliminar fotos del Storage
 	if len(receta.Fotos) > 0 {

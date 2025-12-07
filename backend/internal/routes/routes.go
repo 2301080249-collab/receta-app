@@ -22,6 +22,8 @@ func SetupRoutes(
 	portafolioHandler *handlers.PortafolioHandler,
 	notificationHandler *handlers.NotificationHandler,
 	usuarioHandler *handlers.UsuarioHandler,
+	horarioHandler *handlers.HorarioHandler, // ✅ HORARIO
+	dashboardHandler *handlers.DashboardHandler, // ✅ DASHBOARD
 ) {
 	api := app.Group("/api")
 
@@ -45,13 +47,18 @@ func SetupRoutes(
 	// ==================== ADMIN ====================
 	admin := api.Group("/admin")
 	admin.Use(middleware.AuthRequired)
-	admin.Get("/dashboard/stats", adminHandler.ObtenerEstadisticas)
+
+	// ✅ DASHBOARD - NUEVA RUTA
+	admin.Get("/dashboard/stats", dashboardHandler.ObtenerEstadisticas)
 
 	admin.Post("/crear-usuario", adminHandler.CrearUsuario)
 	admin.Get("/usuarios", adminHandler.ListarUsuarios)
 	admin.Get("/usuarios/:id", adminHandler.ObtenerUsuarioPorID)
 	admin.Put("/usuarios/:id", adminHandler.EditarUsuario)
 	admin.Delete("/usuarios/:id", adminHandler.EliminarUsuario)
+
+	// ✅ DOCENTES - NUEVA RUTA
+	admin.Get("/docentes", adminHandler.GetDocentes)
 
 	admin.Post("/ciclos", cicloHandler.CrearCiclo)
 	admin.Get("/ciclos", cicloHandler.ListarCiclos)
@@ -78,6 +85,8 @@ func SetupRoutes(
 	admin.Get("/matriculas/disponibles", matriculaHandler.ListarEstudiantesDisponibles)
 	admin.Patch("/matriculas/:id", matriculaHandler.ActualizarMatricula)
 	admin.Delete("/matriculas/:id", matriculaHandler.EliminarMatricula)
+	admin.Get("/cursos/:curso_id/participantes/export", matriculaHandler.ExportarParticipantesExcel)
+	admin.Get("/tareas/:tarea_id/entregas/export", entregaHandler.ExportarEntregasExcel)
 
 	// ==================== ✅ CATEGORÍAS (ADMIN) ====================
 	admin.Post("/categorias", categoriaHandler.Crear)
@@ -93,6 +102,13 @@ func SetupRoutes(
 	cursos.Use(middleware.AuthRequired)
 
 	cursos.Get("/:id/temas", temaHandler.ListarTemasPorCurso)
+
+	// ==================== ✅ HORARIO ====================
+	horario := api.Group("/horario")
+	horario.Use(middleware.AuthRequired)
+
+	horario.Get("/docente/:docente_id", horarioHandler.ObtenerHorarioDocente)
+	horario.Get("/estudiante/:estudiante_id", horarioHandler.ObtenerHorarioEstudiante) // ✅ NUEVA LÍNEA
 
 	// ==================== TEMAS ====================
 	temas := api.Group("/temas")

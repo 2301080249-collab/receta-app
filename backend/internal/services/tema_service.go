@@ -28,8 +28,8 @@ func NewTemaService(
 	}
 }
 
-// Obtener temas de un curso CON estadísticas de tareas
-func (s *TemaService) GetTemasByCursoID(cursoID string) ([]models.Tema, error) {
+// Obtener temas de un curso CON estadísticas de tareas Y mi_entrega para estudiantes
+func (s *TemaService) GetTemasByCursoID(cursoID string, userID interface{}) ([]models.Tema, error) {
 	ctx := context.Background()
 	cursoUUID, err := uuid.Parse(cursoID)
 	if err != nil {
@@ -47,7 +47,19 @@ func (s *TemaService) GetTemasByCursoID(cursoID string) ([]models.Tema, error) {
 		return nil, fmt.Errorf("error al parsear temas: %w", err)
 	}
 
-	// Para cada tema, cargar sus tareas con estadísticas
+	// ✅ Parsear estudianteID desde userID
+	var estudianteID *uuid.UUID
+	if userID != nil {
+		if uid, ok := userID.(uuid.UUID); ok {
+			estudianteID = &uid
+		} else if uidStr, ok := userID.(string); ok {
+			if parsed, err := uuid.Parse(uidStr); err == nil {
+				estudianteID = &parsed
+			}
+		}
+	}
+
+	// Para cada tema, cargar sus tareas con estadísticas Y mi_entrega
 	for i := range temas {
 		// Obtener tareas del tema
 		tareas, err := s.tareaRepo.GetByTemaID(ctx, temas[i].ID)
@@ -55,14 +67,28 @@ func (s *TemaService) GetTemasByCursoID(cursoID string) ([]models.Tema, error) {
 			continue // Si falla, continuar sin tareas
 		}
 
-		// Para cada tarea, calcular estadísticas
+		// Para cada tarea, calcular estadísticas Y cargar mi_entrega
 		for j := range tareas {
+			// Estadísticas (para todos)
 			stats, err := s.entregaRepo.GetEstadisticasByTareaID(ctx, tareas[j].ID, cursoUUID)
 			if err == nil {
 				tareas[j].TotalEntregas = stats["total_entregas"]
 				tareas[j].EntregasSinCalificar = stats["entregas_sin_calificar"]
 				tareas[j].EntregasCalificadas = stats["entregas_calificadas"]
 				tareas[j].EntregasPendientes = stats["entregas_pendientes"]
+			}
+
+			// ✅ MI_ENTREGA (solo para estudiantes)
+			if estudianteID != nil {
+				miEntrega, err := s.entregaRepo.GetMiEntrega(ctx, tareas[j].ID, *estudianteID)
+				if err == nil && miEntrega != nil {
+					// Cargar archivos de la entrega
+					archivos, err := s.entregaRepo.GetArchivosByEntregaID(ctx, miEntrega.ID)
+					if err == nil {
+						miEntrega.Archivos = archivos
+					}
+					tareas[j].MiEntrega = miEntrega
+				}
 			}
 		}
 

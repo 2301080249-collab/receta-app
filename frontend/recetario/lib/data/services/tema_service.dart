@@ -1,25 +1,13 @@
 import '../models/tema.dart';
 import '../../core/constants/api_constants.dart';
-import '../../core/utils/api_cache.dart'; // ✅ NUEVO
 import 'api_service.dart';
 import 'token_service.dart';
 
 class TemaService {
-  static final _cache = ApiCache(); // ✅ NUEVO
+  // ✅ ELIMINADO: Cache ya no es necesario
 
-  // Obtener temas de un curso CON CACHE
+  // Obtener temas de un curso SIN CACHE
   static Future<List<Tema>> getTemasByCursoId(String cursoId) async {
-    final cacheKey = 'temas_curso_$cursoId';
-    
-    return await _cache.getOrFetch(
-      cacheKey,
-      () => _fetchTemasByCursoId(cursoId),
-      cacheDuration: const Duration(minutes: 5),
-    );
-  }
-
-  // ✅ NUEVO: Función privada que hace la petición real
-  static Future<List<Tema>> _fetchTemasByCursoId(String cursoId) async {
     try {
       print('🔍 getTemasByCursoId - cursoId: $cursoId');
       
@@ -44,9 +32,10 @@ class TemaService {
     }
   }
 
-  // ✅ NUEVO: Invalidar cache cuando se crea/edita/elimina un tema
+  // ✅ ELIMINADO: Ya no hay caché que invalidar
+  // Esta función ya no se usa, pero la dejamos vacía por si algo la llama
   static void invalidarCacheTemas(String cursoId) {
-    _cache.invalidate('temas_curso_$cursoId');
+    print('ℹ️ invalidarCacheTemas llamado (sin efecto, ya no hay caché)');
   }
 
   // Crear tema (docente)
@@ -62,9 +51,6 @@ class TemaService {
       );
 
       final data = ApiService.handleResponse(response);
-      
-      // ✅ Invalidar cache
-      invalidarCacheTemas(tema.cursoId);
       
       return Tema.fromJson(data);
     } catch (e) {
@@ -83,9 +69,6 @@ class TemaService {
         headers: ApiConstants.headersWithAuth(token),
         body: data,
       );
-      
-      // ✅ Invalidar cache (necesitarías pasar cursoId)
-      // invalidarCacheTemas(cursoId);
     } catch (e) {
       throw Exception('Error al actualizar tema: $e');
     }
@@ -101,9 +84,6 @@ class TemaService {
         '${ApiConstants.temas}/$temaId',
         headers: ApiConstants.headersWithAuth(token),
       );
-      
-      // ✅ Invalidar cache (necesitarías pasar cursoId)
-      // invalidarCacheTemas(cursoId);
     } catch (e) {
       throw Exception('Error al eliminar tema: $e');
     }

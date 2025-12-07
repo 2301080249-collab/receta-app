@@ -5,13 +5,14 @@ class Matricula {
   final String cicloId;
   final String estado;
   final double? notaFinal;
-  final String? observaciones;        // ✅ NUEVO
-  final DateTime? fechaMatricula;     // ✅ NUEVO
+  final String? observaciones;
+  final DateTime? fechaMatricula;
   final DateTime createdAt;
 
   // Datos del estudiante (anidados)
   final String? nombreEstudiante;
   final String? codigoEstudiante;
+  final String? emailEstudiante;  // ✅ NUEVO CAMPO
   final int? cicloActualEstudiante;
   final String? seccionEstudiante;
 
@@ -31,11 +32,12 @@ class Matricula {
     required this.cicloId,
     required this.estado,
     this.notaFinal,
-    this.observaciones,              // ✅ NUEVO
-    this.fechaMatricula,             // ✅ NUEVO
+    this.observaciones,
+    this.fechaMatricula,
     required this.createdAt,
     this.nombreEstudiante,
     this.codigoEstudiante,
+    this.emailEstudiante,  // ✅ NUEVO CAMPO
     this.cicloActualEstudiante,
     this.seccionEstudiante,
     this.nombreCurso,
@@ -49,6 +51,7 @@ class Matricula {
     // Extraer datos del estudiante
     String? nombreEstudiante;
     String? codigoEstudiante;
+    String? emailEstudiante;  // ✅ NUEVO
     int? cicloActualEstudiante;
     String? seccionEstudiante;
 
@@ -62,6 +65,7 @@ class Matricula {
       // ✅ PLURAL: usuarios
       if (estudiante['usuarios'] != null) {
         nombreEstudiante = estudiante['usuarios']['nombre_completo'];
+        emailEstudiante = estudiante['usuarios']['email'];  // ✅ NUEVO
       }
     }
 
@@ -98,15 +102,16 @@ class Matricula {
       cicloId: json['ciclo_id'] ?? '',
       estado: json['estado'] ?? 'activo',
       notaFinal: json['nota_final']?.toDouble(),
-      observaciones: json['observaciones'],  // ✅ NUEVO
+      observaciones: json['observaciones'],
       fechaMatricula: json['fecha_matricula'] != null 
           ? DateTime.parse(json['fecha_matricula']) 
-          : null,  // ✅ NUEVO
+          : null,
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
       nombreEstudiante: nombreEstudiante,
       codigoEstudiante: codigoEstudiante,
+      emailEstudiante: emailEstudiante,  // ✅ NUEVO
       cicloActualEstudiante: cicloActualEstudiante,
       seccionEstudiante: seccionEstudiante,
       nombreCurso: nombreCurso,
@@ -125,8 +130,8 @@ class Matricula {
       'ciclo_id': cicloId,
       'estado': estado,
       'nota_final': notaFinal,
-      'observaciones': observaciones,  // ✅ NUEVO
-      'fecha_matricula': fechaMatricula?.toIso8601String(),  // ✅ NUEVO
+      'observaciones': observaciones,
+      'fecha_matricula': fechaMatricula?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -193,15 +198,15 @@ class CrearMatriculaRequest {
   final String estudianteId;
   final String cursoId;
   final String cicloId;
-  final String? estado;           // ✅ NUEVO (opcional)
-  final String? observaciones;    // ✅ NUEVO (opcional)
+  final String? estado;
+  final String? observaciones;
 
   CrearMatriculaRequest({
     required this.estudianteId,
     required this.cursoId,
     required this.cicloId,
-    this.estado,                  // ✅ NUEVO
-    this.observaciones,           // ✅ NUEVO
+    this.estado,
+    this.observaciones,
   });
 
   Map<String, dynamic> toJson() {
@@ -223,15 +228,15 @@ class MatriculaMasivaRequest {
   final List<String> estudiantesIds;
   final String cursoId;
   final String cicloId;
-  final String? estado;           // ✅ NUEVO (opcional)
-  final String? observaciones;    // ✅ NUEVO (opcional)
+  final String? estado;
+  final String? observaciones;
 
   MatriculaMasivaRequest({
     required this.estudiantesIds,
     required this.cursoId,
     required this.cicloId,
-    this.estado,                  // ✅ NUEVO
-    this.observaciones,           // ✅ NUEVO
+    this.estado,
+    this.observaciones,
   });
 
   Map<String, dynamic> toJson() {
@@ -252,19 +257,19 @@ class MatriculaMasivaRequest {
 class ActualizarMatriculaRequest {
   final String? estado;
   final double? notaFinal;
-  final String? observaciones;    // ✅ NUEVO
+  final String? observaciones;
 
   ActualizarMatriculaRequest({
     this.estado, 
     this.notaFinal,
-    this.observaciones,           // ✅ NUEVO
+    this.observaciones,
   });
 
   Map<String, dynamic> toJson() {
     final data = <String, dynamic>{};
     if (estado != null) data['estado'] = estado;
     if (notaFinal != null) data['nota_final'] = notaFinal;
-    if (observaciones != null) data['observaciones'] = observaciones;  // ✅ NUEVO
+    if (observaciones != null) data['observaciones'] = observaciones;
     return data;
   }
 }

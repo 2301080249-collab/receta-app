@@ -96,6 +96,33 @@ func (h *MatriculaHandler) ListarMatriculasPorCurso(c *fiber.Ctx) error {
 	return c.JSON(matriculas)
 }
 
+// ✅ NUEVO: Exportar participantes de un curso a Excel
+func (h *MatriculaHandler) ExportarParticipantesExcel(c *fiber.Ctx) error {
+	cursoID := c.Params("curso_id")
+
+	if cursoID == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "ID del curso requerido",
+		})
+	}
+
+	// Generar el archivo Excel
+	excelBuffer, nombreCurso, err := h.matriculaService.ExportarParticipantesExcel(cursoID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	// Configurar headers para descarga
+	filename := "Participantes_" + nombreCurso + ".xlsx"
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Set("Content-Disposition", "attachment; filename="+filename)
+	c.Set("Content-Length", string(rune(len(excelBuffer.Bytes()))))
+
+	return c.Send(excelBuffer.Bytes())
+}
+
 func (h *MatriculaHandler) ListarMatriculasPorEstudiante(c *fiber.Ctx) error {
 	estudianteID := c.Params("estudiante_id")
 

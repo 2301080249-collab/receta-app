@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/services/gemini_service.dart';
+import '../../config/env.dart';
 
 /// Widget que muestra el análisis nutricional de una receta
 class AnalisisNutricionalCard extends StatefulWidget {
@@ -38,8 +39,9 @@ class _AnalisisNutricionalCardState extends State<AnalisisNutricionalCard> {
     });
 
     try {
-      // Obtener API key desde tu env.dart
-      final apiKey = 'AIzaSyDzVX0e1hmW2U-An4A_BBzVIFSXoxylq2k'; // Tu API key
+      final apiKey = Env.geminiApiKey;
+      print('🔑 [CARD] Usando API KEY: ${apiKey.substring(0, 20)}...');
+      
       final service = GeminiNutritionService(apiKey);
 
       final analisis = await service.analizarReceta(
@@ -217,22 +219,23 @@ class _AnalisisNutricionalCardState extends State<AnalisisNutricionalCard> {
               ),
               const SizedBox(height: 16),
 
-              // Resumen principal
+              // Contenido con iconos
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: colorPrincipal.withOpacity(0.1),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorPrincipal.withOpacity(0.3)),
+                  border: Border.all(color: colorPrincipal.withOpacity(0.2)),
                 ),
-                child: Text(
-                  analisis.resumen,
-                  style: TextStyle(
-                    fontSize: isWeb ? 15 : 14,
-                    fontWeight: FontWeight.w600,
-                    color: colorPrincipal,
-                    height: 1.4,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTextoConIconos(
+                      analisis.resumen,
+                      colorPrincipal,
+                      isWeb,
+                    ),
+                  ],
                 ),
               ),
 
@@ -271,6 +274,113 @@ class _AnalisisNutricionalCardState extends State<AnalisisNutricionalCard> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextoConIconos(String texto, Color colorPrincipal, bool isWeb) {
+    final lineas = texto.split('\n');
+    final widgets = <Widget>[];
+
+    for (var linea in lineas) {
+      if (linea.trim().isEmpty) continue;
+
+      // Detectar secciones
+      if (linea.toUpperCase().contains('ANÁLISIS NUTRICIONAL')) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              linea.trim(),
+              style: TextStyle(
+                fontSize: isWeb ? 16 : 15,
+                fontWeight: FontWeight.bold,
+                color: colorPrincipal,
+              ),
+            ),
+          ),
+        );
+      } else if (linea.toUpperCase().contains('RECOMENDACIÓN')) {
+        // Separador visual
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: colorPrincipal.withOpacity(0.3), thickness: 1),
+          ),
+        );
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Icon(Icons.lightbulb_outline, size: 18, color: colorPrincipal),
+                const SizedBox(width: 8),
+                Text(
+                  'RECOMENDACIÓN:',
+                  style: TextStyle(
+                    fontSize: isWeb ? 15 : 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorPrincipal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+     } else if (linea.contains('Calorías') || linea.contains('calorías')) {
+  widgets.add(_buildLineaConIcono('🔥', linea, isWeb));
+} else if (linea.contains('Proteínas') || linea.contains('proteínas')) {
+  widgets.add(_buildLineaConIcono('💪', linea, isWeb));
+} else if (linea.contains('Grasas:') || linea.contains('grasas:')) {  // ← Agregar : para ser específico
+  widgets.add(_buildLineaConIcono('🥑', linea, isWeb));
+} else if (linea.contains('Carbohidratos') || linea.contains('carbohidratos')) {
+  widgets.add(_buildLineaConIcono('🌾', linea, isWeb));
+      } else {
+        // Línea normal
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              linea.trim(),
+              style: TextStyle(
+                fontSize: isWeb ? 14 : 13,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  Widget _buildLineaConIcono(String emoji, String texto, bool isWeb) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            emoji,
+            style: const TextStyle(fontSize: 18),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              texto.replaceFirst('•', '').replaceFirst('-', '').trim(),
+              style: TextStyle(
+                fontSize: isWeb ? 14 : 13,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

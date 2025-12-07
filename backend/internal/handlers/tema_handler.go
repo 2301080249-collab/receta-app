@@ -16,10 +16,10 @@ func NewTemaHandler(temaService *services.TemaService) *TemaHandler {
 }
 
 // GET /api/cursos/:id/temas
+// GET /api/cursos/:id/temas
 func (h *TemaHandler) ListarTemasPorCurso(c *fiber.Ctx) error {
 	cursoID := c.Params("id")
 
-	// ✅ LOG 1
 	fmt.Printf("🔍 BACKEND: ListarTemasPorCurso - cursoID: %s\n", cursoID)
 
 	if cursoID == "" {
@@ -27,13 +27,17 @@ func (h *TemaHandler) ListarTemasPorCurso(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "ID de curso requerido"})
 	}
 
-	temas, err := h.temaService.GetTemasByCursoID(cursoID)
+	// ✅ EXTRAER USER_ID DEL MIDDLEWARE DE AUTENTICACIÓN
+	userID := c.Locals("user_id") // Esto viene del middleware auth
+
+	fmt.Printf("🔍 BACKEND: user_id del contexto: %v\n", userID)
+
+	temas, err := h.temaService.GetTemasByCursoID(cursoID, userID)
 	if err != nil {
 		fmt.Printf("❌ BACKEND: Error: %v\n", err)
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// ✅ LOG 2
 	fmt.Printf("✅ BACKEND: Devolviendo %d temas\n", len(temas))
 
 	return c.JSON(temas)

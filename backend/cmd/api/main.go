@@ -60,6 +60,7 @@ func main() {
 	tareaRepo := repository.NewTareaRepository(supabaseClient)
 	entregaRepo := repository.NewEntregaRepository(supabaseClient)
 	notificationRepo := repository.NewNotificationRepository(supabaseClient) // ✅ NUEVO
+	dashboardRepo := repository.NewDashboardRepository(supabaseClient)       // ✅ DASHBOARD
 
 	// 4. Services
 	authService := services.NewAuthService(authRepo, usuarioRepo)
@@ -77,24 +78,26 @@ func main() {
 	)
 
 	// ✅ NUEVO: Firebase Service
+	// ✅ NUEVO: Firebase Service con fallback seguro
 	firebaseService, err := services.NewFirebaseService()
 	if err != nil {
 		log.Printf("⚠️ Firebase no disponible: %v", err)
+		firebaseService = nil // Explícitamente nil
 	}
 
-	// ✅ NUEVO: Notification Service
+	// ✅ NUEVO: Notification Service (funciona CON o SIN Firebase)
 	notificationService := services.NewNotificationService(
 		notificationRepo,
-		firebaseService,
+		firebaseService, // Puede ser nil
 		usuarioRepo,
 		portafolioRepo,
 	)
-
 	materialService := services.NewMaterialService(materialRepo, storageService)
 	tareaService := services.NewTareaService(tareaRepo, entregaRepo)
 	entregaService := services.NewEntregaService(entregaRepo, tareaRepo, storageService)
 	categoriaService := services.NewCategoriaService(categoriaRepo)
 	portafolioService := services.NewPortafolioService(portafolioRepo, storageService)
+	dashboardService := services.NewDashboardService(dashboardRepo) // ✅ DASHBOARD
 
 	// 5. Handlers
 	authHandler := handlers.NewAuthHandler(authService)
@@ -108,9 +111,10 @@ func main() {
 	entregaHandler := handlers.NewEntregaHandler(entregaService, tareaService, storageService)
 	categoriaHandler := handlers.NewCategoriaHandler(categoriaService)
 	portafolioHandler := handlers.NewPortafolioHandler(portafolioService, storageService)
-	notificationHandler := handlers.NewNotificationHandler(notificationService) // ✅ NUEVO
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	usuarioHandler := handlers.NewUsuarioHandler(adminService, notificationService)
-	// ✅ NUEVO
+	horarioHandler := handlers.NewHorarioHandler(cursoService)         // ✅ HORARIO
+	dashboardHandler := handlers.NewDashboardHandler(dashboardService) // ✅ DASHBOARD
 
 	// ==================== FIBER SETUP ====================
 
@@ -127,7 +131,7 @@ func main() {
 	}))
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, ngrok-skip-browser-warning, User-Agent", // ✅ AGREGADOS
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, ngrok-skip-browser-warning, User-Agent",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS, PATCH",
 	}))
 
@@ -154,8 +158,10 @@ func main() {
 		entregaHandler,
 		categoriaHandler,
 		portafolioHandler,
-		notificationHandler, // ✅ NUEVO
-		usuarioHandler,      // ✅ NUEVO
+		notificationHandler,
+		usuarioHandler,
+		horarioHandler,   // ✅ HORARIO
+		dashboardHandler, // ✅ DASHBOARD
 	)
 
 	// Graceful shutdown

@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform, File;
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/curso.dart';
 import '../../../data/models/tema.dart';
@@ -6,9 +11,13 @@ import '../../../data/models/tarea.dart';
 import '../../../data/models/entrega.dart';
 import '../../../data/repositories/tarea_repository.dart';
 import '../../../data/repositories/tema_repository.dart';
+import '../../../core/utils/token_manager.dart';
 import '../../widgets/CursoSidebarWidget.dart';
 import '../../widgets/custom_app_header.dart';
 import 'calificar_entrega_screen.dart';
+import 'dart:typed_data';
+
+import 'package:file_saver/file_saver.dart';
 
 class EntregasTareaScreen extends StatefulWidget {
   final Tarea tarea;
@@ -32,6 +41,7 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
   List<Tema> _temas = [];
   bool _isLoading = true;
   bool _isLoadingTemas = true;
+  bool _isExporting = false;
   String _filtroActual = 'todas';
   String _busqueda = '';
   
@@ -50,6 +60,19 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
     
     _cargarTemasSidebar();
     _cargarEntregas();
+  }
+
+  // ✅ Obtener URL base según la plataforma
+  String _getBaseUrl() {
+    if (kIsWeb) {
+      return 'http://localhost:8080';
+    } else {
+      if (Platform.isAndroid) {
+        return 'http://10.0.2.2:8080';
+      } else {
+        return 'http://localhost:8080';
+      }
+    }
   }
 
   Future<void> _cargarTemasSidebar() async {
@@ -91,6 +114,70 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
     }
   }
 
+  // ✅ FUNCIÓN DE EXPORTACIÓN A EXCEL
+  Future<void> _exportarAExcel() async {
+    setState(() => _isExporting = true);
+
+    try {
+      final token = await TokenManager.getToken();
+      if (token == null) throw Exception('No hay token');
+
+      final baseUrl = _getBaseUrl();
+      final url = '$baseUrl/api/admin/tareas/${widget.tarea.id}/entregas/export';
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final fileName = 'Entregas_${widget.tarea.titulo}.xlsx';
+        
+       await _descargarArchivo(response.bodyBytes, fileName);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Archivo Excel descargado exitosamente'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Error del servidor: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al exportar: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+  
+  Future<void> _descargarArchivo(List<int> bytes, String fileName) async {
+  try {
+    await FileSaver.instance.saveFile(
+      name: fileName.replaceAll('.xlsx', ''), // FileSaver agrega la extensión
+      bytes: Uint8List.fromList(bytes),
+      ext: 'xlsx',
+      mimeType: MimeType.microsoftExcel,
+    );
+  } catch (e) {
+    throw Exception('Error al guardar archivo: $e');
+  }
+}
+
   void _toggleSidebar() {
     setState(() {
       _sidebarVisible = !_sidebarVisible;
@@ -118,8 +205,9 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
     if (_busqueda.isNotEmpty) {
       filtradas = filtradas.where((e) {
         final nombreEstudiante = e.estudiante?.nombreCompleto.toLowerCase() ?? '';
+        final email = e.estudiante?.email.toLowerCase() ?? '';
         final searchLower = _busqueda.toLowerCase();
-        return nombreEstudiante.contains(searchLower);
+        return nombreEstudiante.contains(searchLower) || email.contains(searchLower);
       }).toList();
     }
 
@@ -173,63 +261,61 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
           const CustomAppHeader(selectedMenu: 'cursos'),
           
           Expanded(
-  child: Row(
-    children: [
-      // ✅ SIDEBAR - Solo visible si está abierto
-      if (_sidebarVisible)
-        CursoSidebarWidget(
-          curso: widget.curso,
-          temas: _temas,
-          isLoading: _isLoadingTemas,
-          isVisible: _sidebarVisible,
-          temasExpandidos: _temasExpandidos,
-          onClose: _toggleSidebar,
-          onTemaToggle: _toggleTema,
-        ),
-      
-      Expanded(
-        child: Stack(
-          children: [
-            _buildContenido(sinCalificar, calificadas, isMobile),
-            
-            // ✅ Botón flotante cuando sidebar está oculto
-            if (!_sidebarVisible)
-              Positioned(
-                left: 0,
-                top: 0,
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF455A64),
-                    borderRadius: const BorderRadius.only(
-                      bottomRight: Radius.circular(28),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
+            child: Row(
+              children: [
+                if (_sidebarVisible)
+                  CursoSidebarWidget(
+                    curso: widget.curso,
+                    temas: _temas,
+                    isLoading: _isLoadingTemas,
+                    isVisible: _sidebarVisible,
+                    temasExpandidos: _temasExpandidos,
+                    onClose: _toggleSidebar,
+                    onTemaToggle: _toggleTema,
+                  ),
+                
+                Expanded(
+                  child: Stack(
+                    children: [
+                      _buildContenido(sinCalificar, calificadas, isMobile),
+                      
+                      if (!_sidebarVisible)
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF455A64),
+                              borderRadius: const BorderRadius.only(
+                                bottomRight: Radius.circular(28),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.menu,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                              onPressed: _toggleSidebar,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.menu,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    onPressed: _toggleSidebar,
-                    padding: EdgeInsets.zero,
-                  ),
                 ),
-              ),
-          ],
-        ),
-      ),
-    ],
-  ),
-),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -282,7 +368,7 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                     _aplicarFiltros();
                   },
                   decoration: InputDecoration(
-                    hintText: 'Buscar por nombre...',
+                    hintText: 'Buscar por nombre o email...',
                     prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
                     filled: true,
                     fillColor: Colors.grey[100],
@@ -296,7 +382,7 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                 
                 SizedBox(height: isMobile ? 12 : 16),
                 
-                // Filtros - En columna para móvil, fila para web
+                // Filtros y botón exportar
                 isMobile
                     ? Column(
                         children: [
@@ -305,6 +391,33 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                           _buildFilterButton('Sin calificar', 'sin_calificar'),
                           const SizedBox(height: 8),
                           _buildFilterButton('Calificadas', 'calificadas'),
+                          const SizedBox(height: 12),
+                          // Botón exportar móvil
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _isExporting ? null : _exportarAExcel,
+                              icon: _isExporting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(Icons.file_download, size: 20),
+                              label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2E7D32),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       )
                     : Row(
@@ -314,6 +427,30 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                           _buildFilterButton('Sin calificar', 'sin_calificar'),
                           const SizedBox(width: 8),
                           _buildFilterButton('Calificadas', 'calificadas'),
+                          const Spacer(),
+                          // Botón exportar desktop
+                          ElevatedButton.icon(
+                            onPressed: _isExporting ? null : _exportarAExcel,
+                            icon: _isExporting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.file_download, size: 20),
+                            label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2E7D32),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
               ],
@@ -322,7 +459,7 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
 
           const SizedBox(height: 24),
 
-          // Lista de entregas - CARDS en móvil, TABLA en web
+          // Lista de entregas
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -368,9 +505,18 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    entrega.estudiante?.nombreCompleto ?? 'Sin nombre',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entrega.estudiante?.nombreCompleto ?? 'Sin nombre',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        entrega.estudiante?.email ?? '',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -535,10 +681,11 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
             columnWidths: const {
               0: FlexColumnWidth(2),
               1: FlexColumnWidth(2),
-              2: FlexColumnWidth(3),
-              3: FlexColumnWidth(2),
-              4: FlexColumnWidth(1.5),
-              5: FlexColumnWidth(1),
+              2: FlexColumnWidth(2),
+              3: FlexColumnWidth(2.5),
+              4: FlexColumnWidth(2),
+              5: FlexColumnWidth(1.5),
+              6: FlexColumnWidth(1),
             },
             children: [
               TableRow(
@@ -548,6 +695,7 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                 ),
                 children: [
                   _buildTableHeader('Estudiante'),
+                  _buildTableHeader('Email'),
                   _buildTableHeader('Título'),
                   _buildTableHeader('Descripción'),
                   _buildTableHeader('Fecha entrega'),
@@ -562,6 +710,7 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
                   ),
                   children: [
                     _buildTableCell(entrega.estudiante?.nombreCompleto ?? 'Sin nombre', isName: true),
+                    _buildTableCell(entrega.estudiante?.email ?? '-'),
                     _buildTableCell(entrega.titulo),
                     _buildDescripcionCell(entrega.descripcion),
                     _buildTableCell(_formatearFecha(entrega.fechaEntrega)),

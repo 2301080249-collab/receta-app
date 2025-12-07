@@ -35,9 +35,7 @@ class CicloDropdownField extends StatelessWidget {
       items: ciclos.map((ciclo) {
         return DropdownMenuItem(
           value: ciclo,
-          child: Text(
-            '${ciclo.nombre} ${ciclo.activo ? "✓ (Activo)" : ""}',
-          ),
+          child: Text('${ciclo.nombre} ${ciclo.activo ? "✓ (Activo)" : ""}'),
         );
       }).toList(),
       onChanged: onChanged,
@@ -85,9 +83,7 @@ class EstudianteDropdownField extends StatelessWidget {
       items: estudiantes.map((estudiante) {
         return DropdownMenuItem(
           value: estudiante,
-          child: Text(
-            '${estudiante.nombreCompleto} (${estudiante.codigo})',
-          ),
+          child: Text('${estudiante.nombreCompleto} (${estudiante.codigo})'),
         );
       }).toList(),
       onChanged: onChanged,
@@ -271,10 +267,6 @@ class NivelCursoDropdownField extends StatelessWidget {
         DropdownMenuItem(value: 4, child: Text('Ciclo IV')),
         DropdownMenuItem(value: 5, child: Text('Ciclo V')),
         DropdownMenuItem(value: 6, child: Text('Ciclo VI')),
-        DropdownMenuItem(value: 7, child: Text('Ciclo VII')),
-        DropdownMenuItem(value: 8, child: Text('Ciclo VIII')),
-        DropdownMenuItem(value: 9, child: Text('Ciclo IX')),
-        DropdownMenuItem(value: 10, child: Text('Ciclo X')),
       ],
       onChanged: onChanged,
     );

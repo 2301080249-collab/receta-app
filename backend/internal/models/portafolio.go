@@ -9,7 +9,7 @@ import (
 
 type Portafolio struct {
 	ID             uuid.UUID `json:"id"`
-	EstudianteID   uuid.UUID `json:"estudiante_id"`
+	UsuarioID      uuid.UUID `json:"usuario_id"` // ✅ CORREGIDO: era estudiante_id
 	Titulo         string    `json:"titulo"`
 	Descripcion    *string   `json:"descripcion,omitempty"`
 	Ingredientes   string    `json:"ingredientes"`

@@ -132,3 +132,18 @@ func (h *AdminHandler) ObtenerEstadisticas(c *fiber.Ctx) error {
 
 	return c.JSON(stats)
 }
+
+// ==================== ✅ OBTENER TODOS LOS DOCENTES ====================
+
+func (h *AdminHandler) GetDocentes(c *fiber.Ctx) error {
+	respBody, err := h.adminService.GetDocentes()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   true,
+			"message": "Error al obtener docentes: " + err.Error(),
+		})
+	}
+
+	c.Set("Content-Type", "application/json")
+	return c.Send(respBody)
+}

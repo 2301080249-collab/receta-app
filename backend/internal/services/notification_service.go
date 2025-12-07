@@ -116,7 +116,14 @@ func (s *NotificationService) CompartirReceta(recetaID uuid.UUID, usuariosIDs []
 }
 
 // Enviar notificación push a un usuario
+// Enviar notificación push a un usuario
 func (s *NotificationService) enviarPushNotificacion(usuarioID uuid.UUID, titulo, mensaje, recetaID string) {
+	// ✅ VALIDACIÓN CRÍTICA: Si Firebase no está disponible, salir silenciosamente
+	if s.firebaseService == nil {
+		log.Printf("⚠️ Firebase no disponible, notificación push omitida para usuario %s", usuarioID)
+		return
+	}
+
 	// Obtener tokens FCM del usuario
 	tokens, err := s.repo.ObtenerTokensFCM(usuarioID)
 	if err != nil {

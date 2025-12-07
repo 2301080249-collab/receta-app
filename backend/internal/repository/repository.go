@@ -23,6 +23,9 @@ type UsuarioRepository interface {
 	CreateDocente(data map[string]interface{}) error
 	CreateAdministrador(data map[string]interface{}) error
 	GetEstudiantesDisponibles(cursoID, cicloID string) ([]byte, error)
+	// AGREGAR DENTRO DE: type UsuarioRepository interface
+
+	GetDocentes() ([]byte, error)
 
 	// ✅ NUEVOS MÉTODOS PARA OBTENER PERFIL POR ROL
 	GetDocenteByUserID(userID string) ([]byte, error)

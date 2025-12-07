@@ -246,19 +246,17 @@ class _EntregarTareaScreenState extends State<EntregarTareaScreen> {
     }
   }
 
-  // ✅ FUNCIÓN CON DISEÑO IDÉNTICO A CURSOS_SCREEN
 void _mostrarDialogoExito() {
   AwesomeDialog(
     context: context,
     dialogType: DialogType.success,
     animType: AnimType.scale,
     
-    // 🎨 ÍCONO VERDE CIRCULAR CON SOMBRA (IDÉNTICO)
     customHeader: Container(
       width: 100,
       height: 100,
       decoration: BoxDecoration(
-        color: const Color(0xFF10B981), // ✅ Verde exacto
+        color: const Color(0xFF10B981),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -283,12 +281,16 @@ void _mostrarDialogoExito() {
     btnOkText: 'Aceptar',
     width: MediaQuery.of(context).size.width < 600 ? null : 500,
     
+    // ✅ CORRECTO: Volver a la pantalla anterior con true
     btnOkOnPress: () {
-      Navigator.pop(context, true);
+      // El diálogo se cierra automáticamente
+      // Solo necesitas hacer pop para volver al curso
+      Navigator.of(context).pop(true); // ← El true indica que hubo cambios
     },
     
     btnOkColor: const Color(0xFF10B981),
     dismissOnTouchOutside: false,
+    dismissOnBackKeyPress: false,
     headerAnimationLoop: false,
   ).show();
 }
@@ -491,46 +493,56 @@ void _mostrarDialogoExito() {
   }
 
   Widget _buildInfoTarea(bool isMobile) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 16.w : 24)),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF37474F), Color(0xFF455A64)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(kIsWeb ? 12 : 12.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+  return Container(
+    width: double.infinity,
+    padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 16.w : 24)),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF37474F), Color(0xFF455A64)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.assignment,
-                color: Colors.white70,
-                size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
+      borderRadius: BorderRadius.circular(kIsWeb ? 12 : 12.r),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.1),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ✅ AGREGAR BOTÓN DE RETROCESO AQUÍ
+        Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              iconSize: isMobile ? 24 : 28,
+            ),
+            SizedBox(width: kIsWeb ? 12 : (isMobile ? 10.w : 12)),
+            Icon(
+              Icons.assignment,
+              color: Colors.white70,
+              size: kIsWeb ? 20 : (isMobile ? 18.sp : 20),
+            ),
+            SizedBox(width: kIsWeb ? 8 : (isMobile ? 6.w : 8)),
+            Text(
+              'INFORMACIÓN DE LA TAREA',
+              style: TextStyle(
+                fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
+                fontWeight: FontWeight.bold,
+                color: Colors.white.withOpacity(0.8),
+                letterSpacing: 1.2,
               ),
-              SizedBox(width: kIsWeb ? 8 : (isMobile ? 6.w : 8)),
-              Text(
-                'INFORMACIÓN DE LA TAREA',
-                style: TextStyle(
-                  fontSize: kIsWeb ? 12 : (isMobile ? 11.sp : 12),
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white.withOpacity(0.8),
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
+        ),
+        // ... resto del código sin cambios
           SizedBox(height: kIsWeb ? 16 : (isMobile ? 12.h : 16)),
           Text(
             widget.tarea.titulo,

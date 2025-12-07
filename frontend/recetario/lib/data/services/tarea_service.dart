@@ -1,10 +1,13 @@
 import '../models/tarea.dart';
 import '../models/entrega.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/utils/api_cache.dart'; // ✅ AGREGAR
 import 'api_service.dart';
 import 'token_service.dart';
 
 class TareaService {
+  static final _cache = ApiCache(); // ✅ AGREGAR
+
   // Crear tarea (docente)
   static Future<Tarea> crearTarea(Tarea tarea) async {
     try {
@@ -18,12 +21,66 @@ class TareaService {
       );
 
       final data = ApiService.handleResponse(response);
+      
+      // ✅ AGREGAR: Invalidar cache de temas
+      if (tarea.temaId != null) {
+        _cache.invalidate('temas_curso_${tarea.cursoId}');
+        print('🗑️ Cache invalidado para curso ${tarea.cursoId}');
+      }
+      
       return Tarea.fromJson(data);
     } catch (e) {
       throw Exception('Error al crear tarea: $e');
     }
   }
 
+  // Actualizar tarea (docente)
+  static Future<void> actualizarTarea(String tareaId, Tarea tarea) async {
+    try {
+      final token = await TokenService.getToken();
+      if (token == null) throw Exception('No hay sesión activa');
+
+      final response = await ApiService.put(
+        '${ApiConstants.tareas}/$tareaId',
+        headers: ApiConstants.headersWithAuth(token),
+        body: tarea.toJson(),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al actualizar tarea');
+      }
+      
+      // ✅ AGREGAR: Invalidar cache
+      _cache.invalidate('temas_curso_${tarea.cursoId}');
+    } catch (e) {
+      throw Exception('Error al actualizar tarea: $e');
+    }
+  }
+
+  // Eliminar tarea (docente)
+  static Future<void> eliminarTarea(String tareaId) async {
+    try {
+      final token = await TokenService.getToken();
+      if (token == null) throw Exception('No hay sesión activa');
+
+      final response = await ApiService.delete(
+        '${ApiConstants.tareas}/$tareaId',
+        headers: ApiConstants.headersWithAuth(token),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al eliminar tarea');
+      }
+      
+      // ✅ NOTA: Aquí necesitarías el cursoId, considera pasarlo como parámetro
+      // _cache.invalidate('temas_curso_$cursoId');
+    } catch (e) {
+      throw Exception('Error al eliminar tarea: $e');
+    }
+  }
+
+  // ... resto del código sin cambios
+  
   // Listar tareas por tema
   static Future<List<Tarea>> getTareasByTemaId(String temaId) async {
     try {
@@ -109,45 +166,6 @@ class TareaService {
       }
     } catch (e) {
       throw Exception('Error al calificar entrega: $e');
-    }
-  }
-
-  // Actualizar tarea (docente)
-  static Future<void> actualizarTarea(String tareaId, Tarea tarea) async {
-    try {
-      final token = await TokenService.getToken();
-      if (token == null) throw Exception('No hay sesión activa');
-
-      final response = await ApiService.put(
-        '${ApiConstants.tareas}/$tareaId',
-        headers: ApiConstants.headersWithAuth(token),
-        body: tarea.toJson(),
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Error al actualizar tarea');
-      }
-    } catch (e) {
-      throw Exception('Error al actualizar tarea: $e');
-    }
-  }
-
-  // Eliminar tarea (docente)
-  static Future<void> eliminarTarea(String tareaId) async {
-    try {
-      final token = await TokenService.getToken();
-      if (token == null) throw Exception('No hay sesión activa');
-
-      final response = await ApiService.delete(
-        '${ApiConstants.tareas}/$tareaId',
-        headers: ApiConstants.headersWithAuth(token),
-      );
-
-      if (response.statusCode != 200 && response.statusCode != 204) {
-        throw Exception('Error al eliminar tarea');
-      }
-    } catch (e) {
-      throw Exception('Error al eliminar tarea: $e');
     }
   }
 }

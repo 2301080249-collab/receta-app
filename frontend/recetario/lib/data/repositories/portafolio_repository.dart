@@ -112,23 +112,35 @@ class PortafolioRepository {
   }
 
   /// Obtener detalle de una receta
-  Future<Portafolio> obtenerPorId(String id) async {
-    try {
-      final token = await TokenManager.getToken();
-      if (token == null) throw Exception('No hay token de autenticación');
+Future<Portafolio> obtenerPorId(String id) async {
+  try {
+    final token = await TokenManager.getToken();
+    if (token == null) throw Exception('No hay token de autenticación');
 
-      final response = await ApiService.get(
-        ApiConstants.portafolioDetalle(id),
-        headers: ApiConstants.headersWithAuth(token),
-      );
+    final response = await ApiService.get(
+      ApiConstants.portafolioDetalle(id),
+      headers: ApiConstants.headersWithAuth(token),
+    );
 
-      final data = ApiService.handleResponse(response);
-      return Portafolio.fromJson(data);
-    } catch (e) {
-      print('❌ Error obteniendo receta: $e');
-      throw Exception('Error al obtener receta: $e');
-    }
+    final data = ApiService.handleResponse(response);
+    
+    // ✅ AGREGAR ESTOS LOGS
+    print('═══════════════════════════════════════');
+    print('📥 RESPUESTA COMPLETA DEL BACKEND:');
+    print(data);
+    print('───────────────────────────────────────');
+    print('🔍 CAMPOS DE USUARIO:');
+    print('nombre_estudiante: ${data['nombre_estudiante']}');
+    print('avatar_estudiante: ${data['avatar_estudiante']}');
+    print('codigo_estudiante: ${data['codigo_estudiante']}');
+    print('═══════════════════════════════════════');
+    
+    return Portafolio.fromJson(data);
+  } catch (e) {
+    print('❌ Error obteniendo receta: $e');
+    throw Exception('Error al obtener receta: $e');
   }
+}
 
   /// Eliminar receta
   Future<void> eliminar(String id) async {

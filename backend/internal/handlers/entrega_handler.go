@@ -121,6 +121,28 @@ func (h *EntregaHandler) ObtenerEntregasDeTarea(c *fiber.Ctx) error {
 	return c.JSON(entregas)
 }
 
+// ✅ NUEVO: Exportar entregas de una tarea a Excel
+func (h *EntregaHandler) ExportarEntregasExcel(c *fiber.Ctx) error {
+	tareaID, err := uuid.Parse(c.Params("tarea_id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID de tarea inválido"})
+	}
+
+	// Generar el archivo Excel
+	excelBuffer, nombreTarea, err := h.tareaService.ExportarEntregasExcel(c.Context(), tareaID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Configurar headers para descarga
+	filename := "Entregas_" + nombreTarea + ".xlsx"
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Set("Content-Disposition", "attachment; filename="+filename)
+	c.Set("Content-Length", string(rune(len(excelBuffer.Bytes()))))
+
+	return c.Send(excelBuffer.Bytes())
+}
+
 // GET /api/tareas/:id/mi-entrega (estudiante ve su entrega)
 func (h *EntregaHandler) ObtenerMiEntrega(c *fiber.Ctx) error {
 	tareaID, err := uuid.Parse(c.Params("id"))

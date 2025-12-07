@@ -50,8 +50,25 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
     }
   }
 
+  // ✅ FUNCIÓN CORREGIDA: Ya no usa caché, solo recarga
   Future<void> _cargarTemas() async {
-    widget.onTemasActualizados?.call();
+    try {
+      // Recargar temas desde el backend con las entregas actualizadas
+      final temasActualizados = await _temaRepository.getTemasByCursoId(widget.curso.id);
+      
+      if (mounted) {
+        setState(() {
+          _temas = temasActualizados;
+        });
+        
+        // Notificar al padre (CursoPersistentLayout) para que también actualice
+        widget.onTemasActualizados?.call();
+      }
+    } catch (e) {
+      print('Error recargando temas: $e');
+      // Aún así notificar al padre por si tiene su propia lógica de recarga
+      widget.onTemasActualizados?.call();
+    }
   }
 
   List<Tema> _obtenerTemasCon16() {
@@ -85,57 +102,60 @@ class _CursoContenidoEstudianteState extends State<CursoContenidoEstudiante> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 12.w : 16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Título del curso
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-              horizontal: kIsWeb ? 24 : (isMobile ? 16.w : 20),
-              vertical: kIsWeb ? 28 : (isMobile ? 16.h : 20),
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+    return RefreshIndicator(
+      onRefresh: _cargarTemas, // ✅ SIMPLIFICADO: Solo llama a _cargarTemas
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(kIsWeb ? 24 : (isMobile ? 12.w : 16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Título del curso
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: kIsWeb ? 24 : (isMobile ? 16.w : 20),
+                vertical: kIsWeb ? 28 : (isMobile ? 16.h : 20),
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(kIsWeb ? 8 : 8.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                '${widget.curso.nombre.toUpperCase()} ${widget.curso.nivelRomano}-${widget.curso.seccion ?? "A"} ${widget.curso.cicloNombre ?? "2023-I"}',
+                style: TextStyle(
+                  fontSize: kIsWeb ? 32 : (isMobile ? 18.sp : 24),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  letterSpacing: 0.3,
+                  height: 1.2,
                 ),
-              ],
-            ),
-            child: Text(
-              '${widget.curso.nombre.toUpperCase()} ${widget.curso.nivelRomano}-${widget.curso.seccion ?? "A"} ${widget.curso.cicloNombre ?? "2023-I"}',
-              style: TextStyle(
-                fontSize: kIsWeb ? 32 : (isMobile ? 18.sp : 24),
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                letterSpacing: 0.3,
-                height: 1.2,
               ),
             ),
-          ),
-          
-          SizedBox(height: kIsWeb ? 32 : (isMobile ? 16.h : 24)),
+            
+            SizedBox(height: kIsWeb ? 32 : (isMobile ? 16.h : 24)),
 
-          // Lista de temas
-          ...temasCon16.map((tema) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: kIsWeb ? 0 : (isMobile ? 8.h : 12),
-              ),
-              child: TemaCardEstudiante(
-                key: ValueKey(tema.id),
-                tema: tema,
-                onMaterialVisto: _cargarTemas,
-              ),
-            );
-          }).toList(),
-        ],
+            // Lista de temas
+            ...temasCon16.map((tema) {
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: kIsWeb ? 0 : (isMobile ? 8.h : 12),
+                ),
+                child: TemaCardEstudiante(
+                  key: ValueKey(tema.id),
+                  tema: tema,
+                  onMaterialVisto: _cargarTemas, // ✅ Recarga directamente
+                ),
+              );
+            }).toList(),
+          ],
+        ),
       ),
     );
   }

@@ -67,7 +67,7 @@ class GeminiNutritionService {
     if (apiKey.isEmpty) {
       print('❌ [GEMINI] API KEY VACÍA');
     } else {
-      print('✅ [GEMINI] API KEY configurada - Usando gemini-2.0-flash');
+      print('✅ [GEMINI] API KEY configurada - Usando gemini-2.5-flash');
     }
   }
 
@@ -80,7 +80,7 @@ class GeminiNutritionService {
     print('\n🔍 [GEMINI] ════════════════════════════════════════');
     print('📋 Iniciando análisis: $nombreReceta');
     print('📂 Categoría: $categoria');
-    print('🥘 Ingredientes: ${ingredientes.take(5).join(", ")}...');
+    print('🥘 Ingredientes (${ingredientes.length}): ${ingredientes.take(3).join(", ")}...');
 
     if (_cache.containsKey(recetaId)) {
       print('✅ Encontrado en caché');
@@ -94,174 +94,222 @@ class GeminiNutritionService {
       return AnalisisNutricional.fallback(categoria);
     }
 
-    try {
-      final prompt = _construirPrompt(
-        nombreReceta: nombreReceta,
-        categoria: categoria,
-        ingredientes: ingredientes,
-      );
+    const maxIntentos = 2;
+    for (int intento = 1; intento <= maxIntentos; intento++) {
+      try {
+        final prompt = _construirPromptMejorado(
+          nombreReceta: nombreReceta,
+          categoria: categoria,
+          ingredientes: ingredientes,
+        );
 
-      print('📤 Enviando solicitud a Gemini API...');
+        print('📤 Enviando solicitud a Gemini API (intento $intento/$maxIntentos)...');
+        print('📊 Tokens máximos: 2000');
 
-      final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey'
-      );
+        final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey'
+        );
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'contents': [
-            {
-              'parts': [
-                {'text': prompt}
-              ]
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.7,
-            'maxOutputTokens': 150,
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'contents': [
+              {
+                'parts': [
+                  {'text': prompt}
+                ]
+              }
+            ],
+            'generationConfig': {
+              'temperature': 0.4,
+              'maxOutputTokens': 2000,
+              'topP': 0.95,
+              'topK': 40,
+            },
+            'safetySettings': [
+              {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
+              {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
+              {'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_NONE'},
+              {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_NONE'}
+            ]
+          }),
+        ).timeout(
+          const Duration(seconds: 20),
+          onTimeout: () {
+            print('⏰ TIMEOUT');
+            throw Exception('Timeout');
           },
-          'safetySettings': [
-            {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
-            {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
-            {'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_NONE'},
-            {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_NONE'}
-          ]
-        }),
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          print('⏰ TIMEOUT');
-          throw Exception('Timeout');
-        },
-      );
+        );
 
-      print('📥 Status: ${response.statusCode}');
+        print('📥 Status: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        if (!data.containsKey('candidates') || 
-            data['candidates'] == null || 
-            data['candidates'].isEmpty) {
-          print('⚠️ Sin candidates - Usando fallback');
+        if (response.statusCode == 429) {
+          if (intento < maxIntentos) {
+            print('⚠️ Rate limit alcanzado - Esperando 35 segundos antes de reintentar...');
+            await Future.delayed(const Duration(seconds: 35));
+            continue;
+          } else {
+            print('❌ Rate limit persistente después de $maxIntentos intentos');
+            print('🔄 Usando análisis de respaldo');
+            print('🔍 [GEMINI] ════════════════════════════════════════\n');
+            return AnalisisNutricional.fallback(categoria);
+          }
+        }
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          
+          if (!data.containsKey('candidates') || 
+              data['candidates'] == null || 
+              data['candidates'].isEmpty) {
+            print('⚠️ Sin candidates - Usando fallback');
+            print('🔍 [GEMINI] ════════════════════════════════════════\n');
+            return AnalisisNutricional.fallback(categoria);
+          }
+
+          final candidate = data['candidates'][0];
+          
+          if (candidate.containsKey('finishReason')) {
+            print('🏁 Finish Reason: ${candidate['finishReason']}');
+          }
+          
+          if (candidate.containsKey('finishReason') && 
+              (candidate['finishReason'] == 'SAFETY' || 
+               candidate['finishReason'] == 'RECITATION')) {
+            print('🚫 Bloqueado por: ${candidate['finishReason']}');
+            print('🔍 [GEMINI] ════════════════════════════════════════\n');
+            return AnalisisNutricional.fallback(categoria);
+          }
+          
+          try {
+            final content = candidate['content'];
+            
+            if (content == null) {
+              print('⚠️ Content es null - Usando fallback');
+              print('🔍 [GEMINI] ════════════════════════════════════════\n');
+              return AnalisisNutricional.fallback(categoria);
+            }
+            
+            dynamic text;
+            
+            if (content.containsKey('parts') && content['parts'] != null && content['parts'].isNotEmpty) {
+              text = content['parts'][0]['text'];
+            } else if (content.containsKey('text')) {
+              text = content['text'];
+            } else {
+              print('⚠️ No se encontró texto en content');
+              print('🔍 [GEMINI] ════════════════════════════════════════\n');
+              return AnalisisNutricional.fallback(categoria);
+            }
+            
+            if (text == null || text.toString().trim().isEmpty) {
+              print('⚠️ Text vacío - Usando fallback');
+              print('🔍 [GEMINI] ════════════════════════════════════════\n');
+              return AnalisisNutricional.fallback(categoria);
+            }
+            
+            print('✅ Respuesta recibida (${text.toString().length} chars)');
+            
+            final analisis = _parsearRespuesta(text.trim(), categoria);
+            _cache[recetaId] = analisis;
+            
+            print('💾 Guardado en caché');
+            print('🔍 [GEMINI] ════════════════════════════════════════\n');
+            
+            return analisis;
+          } catch (e) {
+            print('⚠️ Error procesando content: $e');
+            print('🔍 [GEMINI] ════════════════════════════════════════\n');
+            return AnalisisNutricional.fallback(categoria);
+          }
+        } else {
+          print('❌ Error: ${response.statusCode}');
+          
+          if (intento < maxIntentos) {
+            print('🔄 Reintentando...');
+            await Future.delayed(const Duration(seconds: 2));
+            continue;
+          }
+          
           print('🔍 [GEMINI] ════════════════════════════════════════\n');
           return AnalisisNutricional.fallback(categoria);
         }
-
-        final candidate = data['candidates'][0];
+      } catch (e) {
+        print('❌ Excepción (intento $intento/$maxIntentos): $e');
         
-        if (candidate.containsKey('finishReason')) {
-          print('🏁 Finish Reason: ${candidate['finishReason']}');
+        if (intento < maxIntentos) {
+          print('🔄 Reintentando después de error...');
+          await Future.delayed(const Duration(seconds: 2));
+          continue;
         }
         
-        if (candidate.containsKey('finishReason') && 
-            (candidate['finishReason'] == 'SAFETY' || 
-             candidate['finishReason'] == 'RECITATION')) {
-          print('🚫 Bloqueado por: ${candidate['finishReason']}');
-          print('🔍 [GEMINI] ════════════════════════════════════════\n');
-          return AnalisisNutricional.fallback(categoria);
-        }
-        
-        if (!candidate.containsKey('content') || 
-            candidate['content'] == null ||
-            !candidate['content'].containsKey('parts') ||
-            candidate['content']['parts'] == null ||
-            candidate['content']['parts'].isEmpty) {
-          print('⚠️ Content inválido - Usando fallback');
-          print('🔍 [GEMINI] ════════════════════════════════════════\n');
-          return AnalisisNutricional.fallback(categoria);
-        }
-
-        final text = candidate['content']['parts'][0]['text'];
-        
-        if (text == null || text.toString().trim().isEmpty) {
-          print('⚠️ Text vacío - Usando fallback');
-          print('🔍 [GEMINI] ════════════════════════════════════════\n');
-          return AnalisisNutricional.fallback(categoria);
-        }
-        
-        print('✅ Respuesta recibida:');
-        print('─────────────────────────────────────────────────────');
-        print(text.trim());
-        print('─────────────────────────────────────────────────────');
-        
-        final analisis = _parsearRespuesta(text.trim(), categoria);
-        _cache[recetaId] = analisis;
-        
-        print('💾 Guardado en caché');
-        print('🔍 [GEMINI] ════════════════════════════════════════\n');
-        
-        return analisis;
-      } else {
-        print('❌ Error: ${response.statusCode}');
-        print('Body: ${response.body}');
         print('🔍 [GEMINI] ════════════════════════════════════════\n');
         return AnalisisNutricional.fallback(categoria);
       }
-    } catch (e) {
-      print('❌ Excepción: $e');
-      print('🔍 [GEMINI] ════════════════════════════════════════\n');
-      return AnalisisNutricional.fallback(categoria);
     }
+
+    return AnalisisNutricional.fallback(categoria);
   }
 
-  String _construirPrompt({
-  required String nombreReceta,
-  required String categoria,
-  required List<String> ingredientes,
-}) {
-  final ingredientesTexto = ingredientes.take(10).join(', ');
+  String _construirPromptMejorado({
+    required String nombreReceta,
+    required String categoria,
+    required List<String> ingredientes,
+  }) {
+    final ingredientesTexto = ingredientes.take(10).join(', ');
 
-  return '''Analiza ESPECÍFICAMENTE estos ingredientes de "$nombreReceta": $ingredientesTexto
+    return '''Eres un nutricionista. Analiza esta receta de forma BREVE Y CONCISA:
 
-Responde en este formato EXACTO:
+RECETA: "$nombreReceta"
+INGREDIENTES: $ingredientesTexto
 
-Evaluación:
-- Proteínas: [Alto/Medio/Bajo]
-- Grasas: [Alto/Medio/Bajo - tipo]
-- Carbohidratos: [Alto/Medio/Bajo]
-- Calorías: [Alto/Medio/Bajo]
+Responde en MÁXIMO 120 palabras usando este formato EXACTO:
 
-Recomendación:
-- Recomendable para: [tipo de personas/dietas]
-- No recomendable para: [condiciones/objetivos]
-- Consumo sugerido: [regular/ocasional/moderar]
+ANÁLISIS NUTRICIONAL:
+- Calorías: [cantidad aproximada] kcal por porción
+- Proteínas: [cantidad]g - [fuente principal]
+- Grasas: [cantidad]g - [tipo: saturadas/insaturadas]
+- Carbohidratos: [cantidad]g - [simples/complejos]
 
-Sin íconos. Sin markdown. Texto simple.''';
-}
+RECOMENDACIÓN:
+[2-3 líneas sobre para quién es ideal, precauciones y frecuencia sugerida]
+
+RESPONDE EN ESPAÑOL. SIN MARKDOWN. MÁXIMO 120 PALABRAS. SÉ DIRECTO Y PRECISO.''';
+  }
+
   AnalisisNutricional _parsearRespuesta(String respuesta, String categoria) {
     try {
       String tipo = 'neutral';
       String resumen = respuesta.trim();
 
-      // Limpiar cualquier markdown
       resumen = resumen
           .replaceAll('**', '')
-          .replaceAll('*', '')
           .replaceAll('##', '')
           .replaceAll('#', '')
           .trim();
 
-      // Detectar tipo según contenido
       final respuestaLower = resumen.toLowerCase();
       if (respuestaLower.contains('evitar') ||
-          respuestaLower.contains('no apta') ||
-          respuestaLower.contains('alto en azúcar') ||
+          respuestaLower.contains('no recomendable') ||
+          respuestaLower.contains('alto riesgo') ||
+          respuestaLower.contains('precaución') ||
           respuestaLower.contains('alta en grasas saturadas') ||
-          respuestaLower.contains('alto en grasas')) {
+          respuestaLower.contains('alto en azúcar')) {
         tipo = 'advertencia';
-      } else if (respuestaLower.contains('apta para') ||
+      } else if (respuestaLower.contains('recomendable para') ||
                  respuestaLower.contains('excelente para') ||
+                 respuestaLower.contains('beneficios') ||
                  respuestaLower.contains('saludable') ||
-                 respuestaLower.contains('rica en omega')) {
+                 respuestaLower.contains('rica en omega') ||
+                 respuestaLower.contains('alto en proteínas')) {
         tipo = 'beneficio';
       } else {
         tipo = 'neutral';
       }
 
-      if (resumen.length < 50) {
+      if (resumen.length < 100) {
+        print('⚠️ Respuesta muy corta (${resumen.length} chars) - Usando fallback');
         resumen = AnalisisNutricional._getFallbackPorCategoria(categoria);
       }
 
@@ -271,6 +319,7 @@ Sin íconos. Sin markdown. Texto simple.''';
         puntosClave: [],
       );
     } catch (e) {
+      print('❌ Error parseando respuesta: $e');
       return AnalisisNutricional.fallback(categoria);
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/models/usuario.dart';
 import '../data/models/docente.dart';
@@ -6,9 +7,8 @@ import '../data/models/estudiante.dart';
 import '../data/models/administrador.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/services/token_service.dart';
-import '../data/services/fcm_service.dart'; // ✅ NUEVO
+import '../data/services/fcm_service.dart';
 import 'user_provider.dart';
-import '../main.dart';
 
 /// Provider para manejo de autenticación global
 class AuthProvider with ChangeNotifier {
@@ -46,20 +46,19 @@ class AuthProvider with ChangeNotifier {
       await TokenService.saveToken(_token!);
       await TokenService.saveUserData(result['user']);
 
-      // ✅ NUEVO: Cargar datos extendidos del usuario
-      await _cargarDatosUsuario();
-
       // ✅ NUEVO: Registrar token FCM después del login (solo móvil)
       if (!kIsWeb) {
-        // Esperar un momento para que el token se guarde
         await Future.delayed(const Duration(milliseconds: 500));
         
         try {
           await FCMService().registrarTokenDespuesDeLogin();
-          print('✅ Token FCM registrado después del login');
+          if (kDebugMode) {
+            debugPrint('✅ Token FCM registrado después del login');
+          }
         } catch (e) {
-          print('⚠️ Error registrando token FCM: $e');
-          // No lanzar error para no bloquear el login
+          if (kDebugMode) {
+            debugPrint('⚠️ Error registrando token FCM: $e');
+          }
         }
       }
 
@@ -80,57 +79,70 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // ==================== ✅ NUEVO: CARGAR DATOS EXTENDIDOS POR ROL ====================
+  // ==================== ✅ CARGAR DATOS EXTENDIDOS POR ROL ====================
 
-  /// Cargar datos extendidos del usuario según su rol
-  Future<void> _cargarDatosUsuario() async {
+  /// Cargar datos extendidos del usuario según su rol (requiere BuildContext)
+  Future<void> cargarDatosUsuarioConContext(BuildContext context) async {
     if (_currentUser == null || _token == null) {
-      print('⚠️ No se puede cargar datos: usuario o token nulo');
+      if (kDebugMode) {
+        debugPrint('⚠️ No se puede cargar datos: usuario o token nulo');
+      }
       return;
     }
 
     try {
-      print('🔵 Cargando datos para rol: ${_currentUser!.rol}');
-
-      final context = navigatorKey.currentContext;
-      if (context == null) {
-        print('⚠️ Context no disponible, saltando carga de datos');
-        return;
+      if (kDebugMode) {
+        debugPrint('🔵 Cargando datos para rol: ${_currentUser!.rol}');
       }
 
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       switch (_currentUser!.rol) {
         case 'docente':
-          print('📘 Obteniendo datos de docente...');
+          if (kDebugMode) {
+            debugPrint('📘 Obteniendo datos de docente...');
+          }
           final docenteData = await _authRepository.getDocenteData(_token!);
           final docente = Docente.fromJson(docenteData);
           userProvider.setDocente(docente);
-          print('✅ Docente cargado: ${docente.codigoDocente}');
+          if (kDebugMode) {
+            debugPrint('✅ Docente cargado: ${docente.codigoDocente}');
+          }
           break;
 
         case 'estudiante':
-          print('📗 Obteniendo datos de estudiante...');
+          if (kDebugMode) {
+            debugPrint('📗 Obteniendo datos de estudiante...');
+          }
           final estudianteData = await _authRepository.getEstudianteData(_token!);
           final estudiante = Estudiante.fromJson(estudianteData);
           userProvider.setEstudiante(estudiante);
-          print('✅ Estudiante cargado: ${estudiante.codigoEstudiante}');
+          if (kDebugMode) {
+            debugPrint('✅ Estudiante cargado: ${estudiante.codigoEstudiante}');
+          }
           break;
 
         case 'administrador':
-          print('📕 Obteniendo datos de administrador...');
+          if (kDebugMode) {
+            debugPrint('📕 Obteniendo datos de administrador...');
+          }
           final adminData = await _authRepository.getAdministradorData(_token!);
           final admin = Administrador.fromJson(adminData);
           userProvider.setAdministrador(admin);
-          print('✅ Administrador cargado: ${admin.codigoAdmin}');
+          if (kDebugMode) {
+            debugPrint('✅ Administrador cargado: ${admin.codigoAdmin}');
+          }
           break;
 
         default:
-          print('⚠️ Rol desconocido: ${_currentUser!.rol}');
+          if (kDebugMode) {
+            debugPrint('⚠️ Rol desconocido: ${_currentUser!.rol}');
+          }
       }
     } catch (e) {
-      print('❌ Error cargando datos de usuario: $e');
-      // No lanzar error, solo loguear para no bloquear el login
+      if (kDebugMode) {
+        debugPrint('❌ Error cargando datos de usuario: $e');
+      }
     }
   }
 
@@ -177,7 +189,6 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Llamar al endpoint del backend para actualizar primera_vez
       await _authRepository.skipPasswordChange(
         userId: _currentUser!.id,
         token: _token!,
@@ -215,44 +226,53 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ RESTAURAR SESIÓN AL INICIAR LA APP (CORREGIDO)
+  // ✅ RESTAURAR SESIÓN AL INICIAR LA APP (SIN DEPENDENCIA DE CONTEXT)
   Future<void> restoreSession() async {
-  _isLoading = true;
-  
-  try {
-    final token = await TokenService.getToken();
-    final userData = await TokenService.getUserData();
+    _isLoading = true;
+    
+    try {
+      final token = await TokenService.getToken();
+      final userData = await TokenService.getUserData();
 
-    if (token != null && userData != null) {
-      // ✅ CAMBIO: Confiar en el token si existe (no verificar con backend)
-      // El backend validará cuando hagas peticiones posteriores
-      _token = token;
-      _currentUser = Usuario.fromJson(userData);
-      _isAuthenticated = true;
+      if (token != null && userData != null) {
+        _token = token;
+        _currentUser = Usuario.fromJson(userData);
+        _isAuthenticated = true;
 
-      // ✅ Cargar datos extendidos después de restaurar sesión
-      await _cargarDatosUsuario();
+        // ✅ Registrar token FCM al restaurar sesión (solo móvil)
+        if (!kIsWeb) {
+          try {
+            await FCMService().registrarTokenDespuesDeLogin();
+            if (kDebugMode) {
+              debugPrint('✅ Token FCM registrado después de restaurar sesión');
+            }
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint('⚠️ Error registrando token FCM: $e');
+            }
+          }
+        }
 
-      // ✅ Registrar token FCM al restaurar sesión (solo móvil)
-      if (!kIsWeb) {
-        try {
-          await FCMService().registrarTokenDespuesDeLogin();
-          print('✅ Token FCM registrado después de restaurar sesión');
-        } catch (e) {
-          print('⚠️ Error registrando token FCM: $e');
+        if (kDebugMode) {
+          debugPrint('✅ Sesión restaurada correctamente para: ${_currentUser!.nombreCompleto}');
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint('ℹ️ No hay sesión guardada');
         }
       }
-    }
 
-    _isLoading = false;
-    Future.microtask(() => notifyListeners());
-  } catch (e) {
-    print('❌ Error restaurando sesión: $e');
-    _isLoading = false;
-    await TokenService.clearAll();
-    Future.microtask(() => notifyListeners());
+      _isLoading = false;
+      Future.microtask(() => notifyListeners());
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error restaurando sesión: $e');
+      }
+      _isLoading = false;
+      await TokenService.clearAll();
+      Future.microtask(() => notifyListeners());
+    }
   }
-}
 
   // VERIFICAR SESIÓN
   Future<bool> checkSession() async {

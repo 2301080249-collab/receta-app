@@ -322,3 +322,8 @@ func (r *EntregaRepository) GetEstadisticasByTareaID(ctx context.Context, tareaI
 
 	return stats, nil
 }
+
+// ✅ NUEVO: Obtener mi entrega (simplificado para usar en tema_service)
+func (r *EntregaRepository) GetMiEntrega(ctx context.Context, tareaID, estudianteID uuid.UUID) (*models.Entrega, error) {
+	return r.GetByTareaAndEstudiante(ctx, tareaID, estudianteID)
+}

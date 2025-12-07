@@ -33,6 +33,7 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
   final _calificacionController = TextEditingController();
   final _comentarioController = TextEditingController();
   bool _isSaving = false;
+  bool _modoEdicion = false; // ✅ NUEVO: Controla si está editando
   
   List<Tema> _temas = [];
   bool _isLoadingTemas = true;
@@ -49,6 +50,7 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
       _temasExpandidos[i] = false;
     }
     
+    // ✅ Cargar calificación existente si ya está calificada
     if (widget.entrega.estaCalificada) {
       _calificacionController.text = widget.entrega.calificacion.toString();
       _comentarioController.text = widget.entrega.comentarioDocente ?? '';
@@ -85,6 +87,23 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
     });
   }
 
+  // ✅ NUEVO: Activar modo edición
+  void _activarEdicion() {
+    setState(() {
+      _modoEdicion = true;
+    });
+  }
+
+  // ✅ NUEVO: Cancelar edición
+  void _cancelarEdicion() {
+    setState(() {
+      _modoEdicion = false;
+      // Restaurar valores originales
+      _calificacionController.text = widget.entrega.calificacion.toString();
+      _comentarioController.text = widget.entrega.comentarioDocente ?? '';
+    });
+  }
+
   @override
   void dispose() {
     _calificacionController.dispose();
@@ -112,7 +131,7 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true);
+        Navigator.pop(context, true); // Volver con resultado
       }
     } catch (e) {
       if (mounted) {
@@ -144,6 +163,10 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
+    
+    // ✅ Determinar si los campos están habilitados
+    final yaCalificada = widget.entrega.estaCalificada;
+    final camposHabilitados = !yaCalificada || _modoEdicion;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -154,7 +177,6 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
           Expanded(
             child: Row(
               children: [
-                // ✅ SIDEBAR - Solo visible si está abierto
                 if (_sidebarVisible)
                   CursoSidebarWidget(
                     curso: widget.curso,
@@ -338,269 +360,12 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
                               SizedBox(height: isMobile ? 16 : 24),
 
                               // SECCIÓN 3: CALIFICACIÓN
-                              Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.green[50],
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.green[200]!, width: 2),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.green.withOpacity(0.1),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(Icons.grade, color: Colors.green[700], size: isMobile ? 18 : 20),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'CALIFICACIÓN',
-                                          style: TextStyle(
-                                            fontSize: isMobile ? 11 : 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.green[700],
-                                            letterSpacing: 1.2,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: isMobile ? 16 : 20),
-                                    
-                                    // Campo de nota - RESPONSIVE
-                                    isMobile
-                                        ? Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Nota',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.grey[700],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: TextFormField(
-                                                      controller: _calificacionController,
-                                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                      style: const TextStyle(
-                                                        fontSize: 24,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                      decoration: InputDecoration(
-                                                        filled: true,
-                                                        fillColor: Colors.white,
-                                                        border: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          borderSide: BorderSide(color: Colors.green[300]!),
-                                                        ),
-                                                        enabledBorder: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          borderSide: BorderSide(color: Colors.green[300]!),
-                                                        ),
-                                                        focusedBorder: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          borderSide: const BorderSide(color: Colors.green, width: 2),
-                                                        ),
-                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                                      ),
-                                                      validator: (value) {
-                                                        if (value == null || value.isEmpty) {
-                                                          return 'Ingrese una calificación';
-                                                        }
-                                                        final nota = double.tryParse(value);
-                                                        if (nota == null) {
-                                                          return 'Ingrese un número válido';
-                                                        }
-                                                        if (nota < 0 || nota > widget.tarea.puntajeMaximo) {
-                                                          return 'Entre 0 y ${widget.tarea.puntajeMaximo}';
-                                                        }
-                                                        return null;
-                                                      },
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    '/ ${widget.tarea.puntajeMaximo}',
-                                                    style: TextStyle(
-                                                      fontSize: 24,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          )
-                                        : Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                flex: 2,
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      'Nota',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Colors.grey[700],
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    TextFormField(
-                                                      controller: _calificacionController,
-                                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                      style: const TextStyle(
-                                                        fontSize: 24,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                      decoration: InputDecoration(
-                                                        filled: true,
-                                                        fillColor: Colors.white,
-                                                        border: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          borderSide: BorderSide(color: Colors.green[300]!),
-                                                        ),
-                                                        enabledBorder: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          borderSide: BorderSide(color: Colors.green[300]!),
-                                                        ),
-                                                        focusedBorder: OutlineInputBorder(
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          borderSide: const BorderSide(color: Colors.green, width: 2),
-                                                        ),
-                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                                      ),
-                                                      validator: (value) {
-                                                        if (value == null || value.isEmpty) {
-                                                          return 'Ingrese una calificación';
-                                                        }
-                                                        final nota = double.tryParse(value);
-                                                        if (nota == null) {
-                                                          return 'Ingrese un número válido';
-                                                        }
-                                                        if (nota < 0 || nota > widget.tarea.puntajeMaximo) {
-                                                          return 'Entre 0 y ${widget.tarea.puntajeMaximo}';
-                                                        }
-                                                        return null;
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 16),
-                                              Padding(
-                                                padding: const EdgeInsets.only(top: 32),
-                                                child: Text(
-                                                  '/ ${widget.tarea.puntajeMaximo}',
-                                                  style: TextStyle(
-                                                    fontSize: 28,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                    
-                                    SizedBox(height: isMobile ? 20 : 24),
-                                    
-                                    // Campo de comentarios
-                                    Text(
-                                      'Comentarios para el estudiante',
-                                      style: TextStyle(
-                                        fontSize: isMobile ? 11 : 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.grey[700],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    TextFormField(
-                                      controller: _comentarioController,
-                                      maxLines: isMobile ? 4 : 5,
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        hintText: 'Escribe tu retroalimentación aquí...',
-                                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: isMobile ? 13 : 14),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Colors.green[300]!),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Colors.green[300]!),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Colors.green, width: 2),
-                                        ),
-                                        contentPadding: EdgeInsets.all(isMobile ? 12 : 16),
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Por favor ingresa un comentario';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                    
-                                    SizedBox(height: isMobile ? 20 : 24),
-                                    
-                                    // Botón guardar
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton(
-                                        onPressed: _isSaving ? null : _guardarCalificacion,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green,
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(vertical: isMobile ? 16 : 18),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          elevation: 2,
-                                        ),
-                                        child: _isSaving
-                                            ? const SizedBox(
-                                                height: 20,
-                                                width: 20,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                                ),
-                                              )
-                                            : Text(
-                                                'GUARDAR CALIFICACIÓN',
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 14 : 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              _buildSeccionCalificacion(isMobile, camposHabilitados, yaCalificada),
                             ],
                           ),
                         ),
                       ),
                       
-                      // ✅ Botón flotante cuando sidebar está oculto
                       if (!_sidebarVisible)
                         Positioned(
                           left: 0,
@@ -641,6 +406,419 @@ class _CalificarEntregaScreenState extends State<CalificarEntregaScreen> {
         ],
       ),
     );
+  }
+
+  // ✅ NUEVA FUNCIÓN: Sección de calificación con modos
+  Widget _buildSeccionCalificacion(bool isMobile, bool camposHabilitados, bool yaCalificada) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.grade, color: Colors.green[700], size: isMobile ? 18 : 20),
+              const SizedBox(width: 8),
+              Text(
+                'CALIFICACIÓN',
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green[700],
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: isMobile ? 16 : 20),
+          
+          // Campo de nota
+          _buildCampoNota(isMobile, camposHabilitados),
+          
+          SizedBox(height: isMobile ? 20 : 24),
+          
+          // Campo de comentarios
+          Text(
+            'Comentarios para el estudiante',
+            style: TextStyle(
+              fontSize: isMobile ? 11 : 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _comentarioController,
+            enabled: camposHabilitados, // ✅ Deshabilitar si ya calificó
+            maxLines: isMobile ? 4 : 5,
+            style: TextStyle(
+              color: camposHabilitados ? Colors.black87 : Colors.grey[600],
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: camposHabilitados ? Colors.white : Colors.grey[100],
+              hintText: 'Escribe tu retroalimentación aquí...',
+              hintStyle: TextStyle(color: Colors.grey[400], fontSize: isMobile ? 13 : 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.green[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.green[300]!),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.green, width: 2),
+              ),
+              contentPadding: EdgeInsets.all(isMobile ? 12 : 16),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor ingresa un comentario';
+              }
+              return null;
+            },
+          ),
+          
+          SizedBox(height: isMobile ? 20 : 24),
+          
+          // ✅ BOTONES DINÁMICOS
+          _buildBotones(isMobile, yaCalificada),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NUEVA FUNCIÓN: Campo de nota responsive
+  Widget _buildCampoNota(bool isMobile, bool camposHabilitados) {
+    return isMobile
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Nota',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _calificacionController,
+                      enabled: camposHabilitados,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: camposHabilitados ? Colors.black87 : Colors.grey[600],
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: camposHabilitados ? Colors.white : Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.green[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.green[300]!),
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.green, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Ingrese una calificación';
+                        }
+                        final nota = double.tryParse(value);
+                        if (nota == null) {
+                          return 'Ingrese un número válido';
+                        }
+                        if (nota < 0 || nota > widget.tarea.puntajeMaximo) {
+                          return 'Entre 0 y ${widget.tarea.puntajeMaximo}';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '/ ${widget.tarea.puntajeMaximo}',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Nota',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _calificacionController,
+                      enabled: camposHabilitados,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: camposHabilitados ? Colors.black87 : Colors.grey[600],
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: camposHabilitados ? Colors.white : Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.green[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.green[300]!),
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.green, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Ingrese una calificación';
+                        }
+                        final nota = double.tryParse(value);
+                        if (nota == null) {
+                          return 'Ingrese un número válido';
+                        }
+                        if (nota < 0 || nota > widget.tarea.puntajeMaximo) {
+                          return 'Entre 0 y ${widget.tarea.puntajeMaximo}';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Padding(
+                padding: const EdgeInsets.only(top: 32),
+                child: Text(
+                  '/ ${widget.tarea.puntajeMaximo}',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            ],
+          );
+  }
+
+  // ✅ NUEVA FUNCIÓN: Botones dinámicos según estado
+  Widget _buildBotones(bool isMobile, bool yaCalificada) {
+    if (!yaCalificada) {
+      // NO ha calificado → Botón: Guardar
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _isSaving ? null : _guardarCalificacion,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 16 : 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 2,
+          ),
+          child: _isSaving
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Text(
+                  'GUARDAR CALIFICACIÓN',
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+        ),
+      );
+    } else if (!_modoEdicion) {
+      // YA calificó y NO está editando → Botón: Editar
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _activarEdicion,
+          icon: const Icon(Icons.edit),
+          label: Text(
+            'EDITAR CALIFICACIÓN',
+            style: TextStyle(
+              fontSize: isMobile ? 14 : 16,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(vertical: isMobile ? 16 : 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 2,
+          ),
+        ),
+      );
+    } else {
+      // Está en modo edición → Botones: Cancelar + Actualizar
+      return isMobile
+          ? Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _guardarCalificacion,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.check),
+                    label: const Text('ACTUALIZAR'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSaving ? null : _cancelarEdicion,
+                    icon: const Icon(Icons.close),
+                    label: const Text('CANCELAR'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSaving ? null : _cancelarEdicion,
+                    icon: const Icon(Icons.close),
+                    label: const Text('CANCELAR'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _guardarCalificacion,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Icon(Icons.check),
+                    label: const Text('ACTUALIZAR'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+    }
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value, bool isMobile) {

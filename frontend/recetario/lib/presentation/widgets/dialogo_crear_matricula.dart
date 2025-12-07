@@ -106,15 +106,15 @@ class _DialogoCrearMatriculaState extends State<DialogoCrearMatricula> {
       final token = authProvider.token!;
 
       await MatriculaService.crearMatricula(
-        token: token,
-        estudianteId: _estudianteSeleccionado!.id,
-        cursoId: _cursoSeleccionado!.id,
-        cicloId: _cicloSeleccionado!.id,
-        estado: _estadoSeleccionado,
-        observaciones: _observacionesController.text.trim().isEmpty 
-            ? null 
-            : _observacionesController.text.trim(),
-      );
+  token: token,
+  estudianteId: _estudianteSeleccionado!.id,  // ✅ Ya es correcto (es usuario_id)
+  cursoId: _cursoSeleccionado!.id,
+  cicloId: _cicloSeleccionado!.id,
+  estado: _estadoSeleccionado,
+  observaciones: _observacionesController.text.trim().isEmpty 
+      ? null 
+      : _observacionesController.text.trim(),
+);
 
       if (mounted) {
         Navigator.of(context).pop(true);

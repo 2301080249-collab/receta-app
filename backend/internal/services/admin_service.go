@@ -346,6 +346,12 @@ func (s *AdminService) ObtenerEstadisticas() (map[string]interface{}, error) {
 	return stats, nil
 }
 
+// ==================== ✅ OBTENER TODOS LOS DOCENTES ====================
+
+func (s *AdminService) GetDocentes() ([]byte, error) {
+	return s.usuarioRepo.GetDocentes()
+}
+
 func RomanoAEntero(romano string) (int, error) {
 	switch strings.ToUpper(romano) {
 	case "I":

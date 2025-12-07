@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 // Core
 import '../../core/mixins/loading_state_mixin.dart';
 import '../../core/mixins/snackbar_mixin.dart';
 import '../../core/mixins/auth_token_mixin.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/constants/api_constants.dart';
 
 // Repositories
 import '../../data/repositories/curso_repository.dart';
-import '../../data/repositories/admin_repository.dart';
 
 // Models
 import '../../data/models/ciclo.dart';
@@ -20,6 +22,7 @@ import '../widgets/dialogs/base_form_dialog.dart';
 import '../widgets/fields/specialized_dropdown_fields.dart';
 import '../widgets/fields/specialized_text_fields.dart';
 import '../widgets/custom_textfield.dart';
+import '../widgets/horario_selector_simple.dart';
 
 /// Diálogo para crear o editar un curso
 class DialogoCrearCurso extends StatefulWidget {
@@ -90,27 +93,52 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
     super.dispose();
   }
 
+  // ✅ SOLUCIÓN COMPLETA: Obtener docentes con usuario_id correcto
   Future<void> _cargarDocentes() async {
     try {
       final token = getToken();
-      final adminRepo = AdminRepository();
-      final usuarios = await adminRepo.obtenerUsuarios(token);
+      
+      // ✅ Llamar al endpoint con header ngrok
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/api/admin/docentes'),
+        headers: {
+          ...ApiConstants.headersWithAuth(token),
+          'ngrok-skip-browser-warning': 'true', // ✅ NUEVO: Bypass ngrok
+        },
+      );
 
-      final docentes = usuarios
-          .where((u) => u['rol'] == 'docente')
-          .map((u) => {
-                'id': (u['id'] ?? '').toString(),
-                'nombre_completo': (u['nombre_completo'] ?? 'Sin nombre').toString(),
-              })
-          .where((u) => u['id']!.isNotEmpty)
-          .toList();
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as List;
+        
+        print('🔍 DATA COMPLETO: $data'); // ← DEBUG
+        if (data.isNotEmpty) {
+          print('🔍 PRIMER ITEM: ${data[0]}'); // ← DEBUG
+        }
+        
+        final docentes = data
+            .map((d) => {
+                  // ✅ CAMBIO: Usar usuario_id del docente (no usuarios.id)
+                  'id': (d['usuario_id'] ?? '').toString(),
+                  'nombre_completo': (d['usuarios']?['nombre_completo'] ?? 'Sin nombre').toString(),
+                })
+            .where((d) => d['id']!.isNotEmpty)
+            .toList();
 
-      if (!mounted) return;
-      setState(() {
-        _docentes = docentes;
-        _loadingDocentes = false;
-      });
+        if (!mounted) return;
+        setState(() {
+          _docentes = docentes;
+          _loadingDocentes = false;
+        });
+        
+        print('✅ Docentes cargados: ${_docentes.length}');
+        if (_docentes.isNotEmpty) {
+          print('✅ Primer docente: ${_docentes[0]}');
+        }
+      } else {
+        throw Exception('Error ${response.statusCode}: ${response.body}');
+      }
     } catch (e) {
+      print('❌ Error al cargar docentes: $e');
       if (!mounted) return;
       setState(() => _loadingDocentes = false);
       showError('Error al cargar docentes: $e');
@@ -120,13 +148,10 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     if (_cicloSeleccionado == null || _docenteSeleccionado == null) {
-      // ⚠️ ADVERTENCIA - NARANJA
       AwesomeDialog(
         context: context,
         dialogType: DialogType.warning,
         animType: AnimType.scale,
-        
-        // 🎨 ÍCONO NARANJA DE ADVERTENCIA
         customHeader: Container(
           width: 100,
           height: 100,
@@ -147,7 +172,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
             size: 60,
           ),
         ),
-        
         title: 'Campos Incompletos',
         desc: 'Por favor seleccione ciclo y docente para continuar.',
         btnOkText: 'Entendido',
@@ -159,6 +183,8 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
       ).show();
       return;
     }
+
+    print('🎯 Guardando curso con docenteId: $_docenteSeleccionado');
 
     try {
       await executeWithLoading(() async {
@@ -201,14 +227,11 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         }
       });
 
-      // ✅ ÉXITO - VERDE
       if (mounted) {
         AwesomeDialog(
           context: context,
           dialogType: DialogType.success,
           animType: AnimType.scale,
-          
-          // 🎨 ÍCONO VERDE DE ÉXITO
           customHeader: Container(
             width: 100,
             height: 100,
@@ -229,7 +252,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
               size: 60,
             ),
           ),
-          
           title: _esEdicion ? '¡Curso Actualizado!' : '¡Curso Creado!',
           desc: _esEdicion 
               ? 'Los datos del curso han sido actualizados correctamente.'
@@ -247,14 +269,12 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
       }
       
     } catch (e) {
-      // ❌ ERROR - ROJO
+      print('❌ Error al guardar curso: $e');
       if (mounted) {
         AwesomeDialog(
           context: context,
           dialogType: DialogType.error,
           animType: AnimType.scale,
-          
-          // 🎨 ÍCONO ROJO DE ERROR
           customHeader: Container(
             width: 100,
             height: 100,
@@ -275,7 +295,6 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
               size: 60,
             ),
           ),
-          
           title: 'Error',
           desc: 'No se pudo ${_esEdicion ? "actualizar" : "crear"} el curso: ${e.toString()}',
           btnOkText: 'Cerrar',
@@ -341,7 +360,10 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
         DocenteDropdownField(
           docentes: _docentes,
           value: _docenteSeleccionado,
-          onChanged: (val) => setState(() => _docenteSeleccionado = val),
+          onChanged: (val) {
+            print('🎯 Docente seleccionado: $val');
+            setState(() => _docenteSeleccionado = val);
+          },
           isLoading: _loadingDocentes,
         ),
         const SizedBox(height: 16),
@@ -373,25 +395,13 @@ class _DialogoCrearCursoState extends State<DialogoCrearCurso>
               ),
         const SizedBox(height: 16),
 
-        isMobile
-            ? Column(
-                children: [
-                  CreditosField(controller: _creditosController),
-                  const SizedBox(height: 16),
-                  HorarioField(controller: _horarioController),
-                ],
-              )
-            : Row(
-                children: [
-                  Expanded(
-                    child: CreditosField(controller: _creditosController),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: HorarioField(controller: _horarioController),
-                  ),
-                ],
-              ),
+        Column(
+          children: [
+            CreditosField(controller: _creditosController),
+            const SizedBox(height: 16),
+            HorarioSelector(controller: _horarioController),
+          ],
+        ),
       ],
     );
   }

@@ -114,14 +114,18 @@ class _DialogoCrearTareaState extends State<DialogoCrearTarea> {
         createdAt: DateTime.now(),
       );
 
-      await _tareaRepository.crearTarea(tarea);
+    // Línea ~112-120 (en el método _guardar)
 
-      if (mounted) {
-        Navigator.pop(context);
-        widget.onTareaCreada();
-        
-        // ✅ SnackBar bonito y profesional
-        ScaffoldMessenger.of(context).showSnackBar(
+await _tareaRepository.crearTarea(tarea);
+
+if (mounted) {
+  Navigator.pop(context);
+  
+  // ✅ FORZAR RECARGA (ya no solo llamar callback)
+  widget.onTareaCreada(); // Esto llamará a _cargarTemas en el layout
+  
+  // ✅ SnackBar bonito y profesional
+  ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [

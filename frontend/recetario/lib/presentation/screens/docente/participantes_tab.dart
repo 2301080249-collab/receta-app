@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform, File;
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../data/models/curso.dart';
 import '../../../data/models/matricula.dart';
 import '../../../data/services/matricula_service.dart';
 import '../../../core/utils/token_manager.dart';
+
+import 'dart:typed_data';
+import 'package:file_saver/file_saver.dart';
 
 class ParticipantesTab extends StatefulWidget {
   final Curso curso;
@@ -20,6 +28,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
   List<Matricula> _participantes = [];
   List<Matricula> _participantesFiltrados = [];
   bool _isLoading = true;
+  bool _isExporting = false;
   String _searchQuery = '';
   String _filtroSeleccionado = 'Nombre';
 
@@ -27,6 +36,36 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
   void initState() {
     super.initState();
     _cargarDatos();
+  }
+
+  // ✅ Obtener URL base según la plataforma
+  String _getBaseUrl() {
+    // ⚠️ CAMBIA ESTAS URLs según tu configuración
+    if (kIsWeb) {
+      // Para desarrollo web local:
+      return 'http://localhost:8080';
+      
+      // Para producción web, descomenta y usa:
+      // return 'https://api.tuapp.com';
+    } else {
+      // Para desarrollo móvil:
+      if (Platform.isAndroid) {
+        // Emulador Android apunta a localhost de la PC:
+        return 'http://10.0.2.2:8080';
+        
+        // Para dispositivo físico Android, usa la IP de tu PC:
+        // return 'http://192.168.1.100:8080';
+      } else {
+        // iOS Simulator:
+        return 'http://localhost:8080';
+        
+        // Para dispositivo iOS físico:
+        // return 'http://192.168.1.100:8080';
+      }
+      
+      // Para producción móvil, descomenta y usa:
+      // return 'https://api.tuapp.com';
+    }
   }
 
   Future<void> _cargarDatos() async {
@@ -76,6 +115,10 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
           case 'Código':
             final codigo = (matricula.codigoEstudiante ?? '').toLowerCase();
             return codigo.contains(queryLower);
+
+          case 'Email':
+            final email = (matricula.emailEstudiante ?? '').toLowerCase();
+            return email.contains(queryLower);
           
           case 'Último acceso':
             final acceso = _calcularUltimoAcceso(matricula.createdAt).toLowerCase();
@@ -87,6 +130,71 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
       }).toList();
     });
   }
+
+  // ✅ FUNCIÓN PRINCIPAL DE EXPORTACIÓN (Cross-platform)
+  Future<void> _exportarAExcel() async {
+    setState(() => _isExporting = true);
+
+    try {
+      final token = await TokenManager.getToken();
+      if (token == null) throw Exception('No hay token');
+
+      final baseUrl = _getBaseUrl();
+      final url = '$baseUrl/api/admin/cursos/${widget.curso.id}/participantes/export';
+      
+      // Hacer petición HTTP con headers de autenticación
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final fileName = 'Participantes_${widget.curso.nombre}.xlsx';
+        
+       await _descargarArchivo(response.bodyBytes, fileName);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Archivo Excel descargado exitosamente'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Error del servidor: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al exportar: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+
+ Future<void> _descargarArchivo(List<int> bytes, String fileName) async {
+  try {
+    await FileSaver.instance.saveFile(
+      name: fileName.replaceAll('.xlsx', ''),
+      bytes: Uint8List.fromList(bytes),
+      ext: 'xlsx',
+      mimeType: MimeType.microsoftExcel,
+    );
+  } catch (e) {
+    throw Exception('Error al guardar archivo: $e');
+  }
+}
 
   String _calcularUltimoAcceso(DateTime fecha) {
     final diferencia = DateTime.now().difference(fecha);
@@ -187,7 +295,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                                 color: Colors.grey[800],
                                 fontWeight: FontWeight.w500,
                               ),
-                              items: ['Nombre', 'Código', 'Último acceso']
+                              items: ['Nombre', 'Código', 'Email', 'Último acceso']
                                   .map((filtro) => DropdownMenuItem(
                                         value: filtro,
                                         child: Row(
@@ -197,7 +305,9 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                                                   ? Icons.person_outline
                                                   : filtro == 'Código'
                                                       ? Icons.numbers
-                                                      : Icons.access_time,
+                                                      : filtro == 'Email'
+                                                          ? Icons.email_outlined
+                                                          : Icons.access_time,
                                               size: 18,
                                               color: Colors.grey[600],
                                             ),
@@ -242,6 +352,35 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                         ),
+
+                        const SizedBox(height: 12),
+
+                        // ✅ BOTÓN EXPORTAR (Móvil - ancho completo)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isExporting ? null : _exportarAExcel,
+                            icon: _isExporting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.file_download, size: 20),
+                            label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2E7D32),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     )
                   // Versión desktop/tablet: Fila
@@ -263,7 +402,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                                 color: Colors.grey[800],
                                 fontWeight: FontWeight.w500,
                               ),
-                              items: ['Nombre', 'Código', 'Último acceso']
+                              items: ['Nombre', 'Código', 'Email', 'Último acceso']
                                   .map((filtro) => DropdownMenuItem(
                                         value: filtro,
                                         child: Row(
@@ -273,7 +412,9 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                                                   ? Icons.person_outline
                                                   : filtro == 'Código'
                                                       ? Icons.numbers
-                                                      : Icons.access_time,
+                                                      : filtro == 'Email'
+                                                          ? Icons.email_outlined
+                                                          : Icons.access_time,
                                               size: 18,
                                               color: Colors.grey[600],
                                             ),
@@ -317,6 +458,32 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                                 borderSide: const BorderSide(color: Color(0xFF37474F), width: 2),
                               ),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 16),
+
+                        // ✅ BOTÓN EXPORTAR (Desktop/Tablet)
+                        ElevatedButton.icon(
+                          onPressed: _isExporting ? null : _exportarAExcel,
+                          icon: _isExporting
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Icon(Icons.file_download, size: 20),
+                          label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E7D32),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
@@ -418,6 +585,23 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
+                          Icon(Icons.email_outlined, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              matricula.emailEstudiante ?? '-',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
                           Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
                           const SizedBox(width: 4),
                           Text(
@@ -465,10 +649,11 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                   borderRadius: BorderRadius.circular(12),
                   child: Table(
                     columnWidths: const {
-                      0: FlexColumnWidth(3),
+                      0: FlexColumnWidth(2.5),
                       1: FlexColumnWidth(1.5),
-                      2: FlexColumnWidth(1.5),
-                      3: FlexColumnWidth(2),
+                      2: FlexColumnWidth(2.5),
+                      3: FlexColumnWidth(1.2),
+                      4: FlexColumnWidth(1.5),
                     },
                     children: [
                       // Header
@@ -482,6 +667,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                         children: [
                           _buildTableHeader('Nombre Completo'),
                           _buildTableHeader('Código'),
+                          _buildTableHeader('Email'),
                           _buildTableHeader('Rol'),
                           _buildTableHeader('Último acceso'),
                         ],
@@ -500,6 +686,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                               isName: true,
                             ),
                             _buildTableCell(matricula.codigoEstudiante ?? '-'),
+                            _buildTableCell(matricula.emailEstudiante ?? '-'),
                             _buildTableCell(_determinarRol(matricula)),
                             _buildTableCell(_calcularUltimoAcceso(matricula.createdAt)),
                           ],

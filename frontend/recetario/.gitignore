@@ -53,3 +53,26 @@ app.*.map.json
 .env.*.local
 backend/.env
 frontend/.env
+
+# ==========================================
+# FIREBASE CREDENTIALS
+# ==========================================
+**/firebase-adminsdk*.json
+**/google-services.json
+**/GoogleService-Info.plist
+firebase_options.dart
+
+# ==========================================
+# ARCHIVOS COMPILADOS BACKEND
+# ==========================================
+backend/*.exe
+backend/api.exe
+backend/main
+backend/**/*.exe
+
+# ==========================================
+# LOGS
+# ==========================================
+*.log
+backend/**/*.log
+frontend/**/*.log

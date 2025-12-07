@@ -13,7 +13,7 @@ import '../../../providers/user_provider.dart';
 import '../../widgets/sidebar_menu.dart';
 
 // Screens
-import 'dashboard_screen.dart';
+import 'dashboard_analytics_screen.dart';
 import 'usuarios_screen.dart';
 import 'ciclos_screen.dart';
 import 'cursos_screen.dart';
@@ -33,7 +33,7 @@ class _AdminLayoutState extends State<AdminLayout> with SnackBarMixin {
 
   // Pantallas disponibles
   static const List<Widget> _screens = [
-    DashboardScreen(),
+    DashboardAnalyticsScreen(),
     UsuariosScreen(),
     CiclosScreen(),
     CursosScreen(),
@@ -51,18 +51,6 @@ class _AdminLayoutState extends State<AdminLayout> with SnackBarMixin {
       icon: Icons.assignment_ind,
       index: 4,
       enabled: true,
-    ),
-    MenuItem(
-      title: 'Recetas',
-      icon: Icons.restaurant_menu,
-      index: 5,
-      enabled: false,
-    ),
-    MenuItem(
-      title: 'Categorías',
-      icon: Icons.category,
-      index: 6,
-      enabled: false,
     ),
   ];
 
@@ -116,11 +104,6 @@ class _AdminLayoutState extends State<AdminLayout> with SnackBarMixin {
       title: const Text('Panel de Administrador'),
       backgroundColor: AppTheme.primaryColor,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          tooltip: 'Notificaciones',
-          onPressed: () => showInDevelopment('Notificaciones'),
-        ),
         if (userName != null)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),

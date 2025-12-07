@@ -17,10 +17,10 @@ type FirebaseService struct {
 func NewFirebaseService() (*FirebaseService, error) {
 	ctx := context.Background()
 
-	// Inicializar Firebase Admin SDK
-	opt := option.WithCredentialsFile("/etc/secrets/firebase-adminsdk.json")
+	// ✅ CORRECCIÓN: Path relativo al directorio raíz del proyecto
+	opt := option.WithCredentialsFile("./firebase-adminsdk.json")
 
-	// ✅ CAMBIO: Especificar el project_id explícitamente
+	// ✅ Especificar el project_id explícitamente
 	config := &firebase.Config{
 		ProjectID: "cenfotec-8c7b1",
 	}

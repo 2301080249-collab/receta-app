@@ -1,11 +1,14 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"recetario-backend/internal/models"
 	"recetario-backend/internal/repository"
 	"time"
+
+	"github.com/xuri/excelize/v2"
 )
 
 // ✅ MatriculaService con dependency injection
@@ -33,8 +36,15 @@ func NewMatriculaService(
 
 func (s *MatriculaService) CrearMatricula(req *models.CrearMatriculaRequest) (*models.Matricula, error) {
 	// Validar que el estudiante existe
-	if _, err := s.usuarioRepo.GetUserByID(req.EstudianteID); err != nil {
-		return nil, fmt.Errorf("estudiante no encontrado")
+	// ✅ DESPUÉS: Validar que existe en tabla estudiantes (que es la que tiene FK)
+	respBody, err := s.usuarioRepo.GetEstudianteByUserID(req.EstudianteID)
+	if err != nil {
+		return nil, fmt.Errorf("estudiante no encontrado en el sistema")
+	}
+
+	var estudiantes []map[string]interface{}
+	if err := json.Unmarshal(respBody, &estudiantes); err != nil || len(estudiantes) == 0 {
+		return nil, fmt.Errorf("el usuario no tiene perfil de estudiante activo")
 	}
 
 	// Validar que el curso existe
@@ -61,21 +71,19 @@ func (s *MatriculaService) CrearMatricula(req *models.CrearMatriculaRequest) (*m
 		"estudiante_id":   req.EstudianteID,
 		"curso_id":        req.CursoID,
 		"ciclo_id":        req.CicloID,
-		"estado":          "activo",   // Por defecto
-		"fecha_matricula": time.Now(), // ✅ NUEVO: Fecha actual
+		"estado":          "activo",
+		"fecha_matricula": time.Now(),
 	}
 
-	// ✅ NUEVO: Agregar estado personalizado si viene en el request
 	if req.Estado != nil && *req.Estado != "" {
 		matriculaData["estado"] = *req.Estado
 	}
 
-	// ✅ NUEVO: Agregar observaciones si vienen en el request
 	if req.Observaciones != nil && *req.Observaciones != "" {
 		matriculaData["observaciones"] = *req.Observaciones
 	}
 
-	respBody, err := s.matriculaRepo.CreateMatricula(matriculaData)
+	respBody, err = s.matriculaRepo.CreateMatricula(matriculaData)
 	if err != nil {
 		return nil, fmt.Errorf("error al crear matrícula: %w", err)
 	}
@@ -135,6 +143,179 @@ func (s *MatriculaService) ListarMatriculasPorCurso(cursoID string) ([]models.Ma
 	}
 
 	return matriculas, nil
+}
+
+// ✅ NUEVO: Exportar participantes de un curso a Excel
+func (s *MatriculaService) ExportarParticipantesExcel(cursoID string) (*bytes.Buffer, string, error) {
+	// Obtener las matrículas del curso
+	matriculas, err := s.ListarMatriculasPorCurso(cursoID)
+	if err != nil {
+		return nil, "", fmt.Errorf("error al obtener participantes: %w", err)
+	}
+
+	if len(matriculas) == 0 {
+		return nil, "", fmt.Errorf("no hay participantes en este curso")
+	}
+
+	// Obtener información del curso para el nombre del archivo
+	nombreCurso := "Curso"
+	if len(matriculas) > 0 {
+		// Parsear el JSON crudo para obtener datos del curso
+		respBody, err := s.matriculaRepo.GetMatriculasByCurso(cursoID)
+		if err == nil {
+			var rawData []map[string]interface{}
+			if err := json.Unmarshal(respBody, &rawData); err == nil && len(rawData) > 0 {
+				if cursos, ok := rawData[0]["cursos"].(map[string]interface{}); ok {
+					if nombre, ok := cursos["nombre"].(string); ok {
+						nombreCurso = nombre
+					}
+				}
+			}
+		}
+	}
+
+	// Crear un nuevo archivo Excel
+	f := excelize.NewFile()
+	defer f.Close()
+
+	// Crear hoja principal
+	sheetName := "Participantes"
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		return nil, "", fmt.Errorf("error al crear hoja: %w", err)
+	}
+
+	// Establecer como hoja activa
+	f.SetActiveSheet(index)
+
+	// Eliminar la hoja por defecto
+	f.DeleteSheet("Sheet1")
+
+	// Definir estilos
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold:  true,
+			Size:  12,
+			Color: "#FFFFFF",
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#2E7D32"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+		Border: []excelize.Border{
+			{Type: "left", Color: "#CCCCCC", Style: 1},
+			{Type: "right", Color: "#CCCCCC", Style: 1},
+			{Type: "top", Color: "#CCCCCC", Style: 1},
+			{Type: "bottom", Color: "#CCCCCC", Style: 1},
+		},
+	})
+
+	cellStyle, _ := f.NewStyle(&excelize.Style{
+		Alignment: &excelize.Alignment{
+			Vertical: "center",
+		},
+		Border: []excelize.Border{
+			{Type: "left", Color: "#EEEEEE", Style: 1},
+			{Type: "right", Color: "#EEEEEE", Style: 1},
+			{Type: "top", Color: "#EEEEEE", Style: 1},
+			{Type: "bottom", Color: "#EEEEEE", Style: 1},
+		},
+	})
+
+	// Escribir encabezados
+	headers := []string{"Nombre Completo", "Código", "Email", "Rol", "Último Acceso"}
+	for i, header := range headers {
+		cell := string(rune('A'+i)) + "1"
+		f.SetCellValue(sheetName, cell, header)
+		f.SetCellStyle(sheetName, cell, cell, headerStyle)
+	}
+
+	// Ajustar anchos de columna
+	f.SetColWidth(sheetName, "A", "A", 30) // Nombre
+	f.SetColWidth(sheetName, "B", "B", 15) // Código
+	f.SetColWidth(sheetName, "C", "C", 30) // Email
+	f.SetColWidth(sheetName, "D", "D", 15) // Rol
+	f.SetColWidth(sheetName, "E", "E", 20) // Último Acceso
+
+	// Escribir datos
+	for i, _ := range matriculas {
+		row := i + 2
+
+		// Parsear datos anidados del JSON crudo
+		respBody, _ := s.matriculaRepo.GetMatriculasByCurso(cursoID)
+		var rawData []map[string]interface{}
+		json.Unmarshal(respBody, &rawData)
+
+		nombreEstudiante := "-"
+		codigoEstudiante := "-"
+		emailEstudiante := "-"
+		ultimoAcceso := "-"
+
+		if i < len(rawData) {
+			if estudiantes, ok := rawData[i]["estudiantes"].(map[string]interface{}); ok {
+				if codigo, ok := estudiantes["codigo_estudiante"].(string); ok {
+					codigoEstudiante = codigo
+				}
+
+				if usuarios, ok := estudiantes["usuarios"].(map[string]interface{}); ok {
+					if nombre, ok := usuarios["nombre_completo"].(string); ok {
+						nombreEstudiante = nombre
+					}
+					if email, ok := usuarios["email"].(string); ok {
+						emailEstudiante = email
+					}
+				}
+			}
+
+			if createdAt, ok := rawData[i]["created_at"].(string); ok {
+				if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+					diff := time.Since(t)
+					days := int(diff.Hours() / 24)
+					hours := int(diff.Hours()) % 24
+
+					if days > 0 {
+						if hours > 0 {
+							ultimoAcceso = fmt.Sprintf("%d días %d horas", days, hours)
+						} else {
+							ultimoAcceso = fmt.Sprintf("%d días", days)
+						}
+					} else if int(diff.Hours()) > 0 {
+						ultimoAcceso = fmt.Sprintf("%d horas", int(diff.Hours()))
+					} else if int(diff.Minutes()) > 0 {
+						ultimoAcceso = fmt.Sprintf("%d minutos", int(diff.Minutes()))
+					} else {
+						ultimoAcceso = "Ahora"
+					}
+				}
+			}
+		}
+
+		// Escribir celdas
+		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), nombreEstudiante)
+		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), codigoEstudiante)
+		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), emailEstudiante)
+		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "Estudiante")
+		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), ultimoAcceso)
+
+		// Aplicar estilo
+		for col := 'A'; col <= 'E'; col++ {
+			cell := string(col) + fmt.Sprintf("%d", row)
+			f.SetCellStyle(sheetName, cell, cell, cellStyle)
+		}
+	}
+
+	// Convertir a buffer
+	var buffer bytes.Buffer
+	if err := f.Write(&buffer); err != nil {
+		return nil, "", fmt.Errorf("error al escribir archivo: %w", err)
+	}
+
+	return &buffer, nombreCurso, nil
 }
 
 func (s *MatriculaService) ListarMatriculasPorEstudiante(estudianteID string) ([]models.Matricula, error) {

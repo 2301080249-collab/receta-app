@@ -19,89 +19,62 @@ func NewPortafolioRepository(client *SupabaseClient) *PortafolioRepository {
 	return &PortafolioRepository{client: client}
 }
 
-// ✅ NUEVO: ObtenerOwnerIDPorUserID - Busca estudiante o docente
+// ✅ CORREGIDO: Retorna userID directamente, NO busca en tablas
 func (r *PortafolioRepository) ObtenerOwnerIDPorUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, string, error) {
-	// Primero intentar con estudiante
-	estudianteID, err := r.ObtenerEstudianteIDPorUserID(ctx, userID)
+	fmt.Printf("🔍 [ObtenerOwnerIDPorUserID] userID recibido: %s\n", userID)
+
+	// Verificar si es estudiante
+	estudianteURL := fmt.Sprintf("%s/rest/v1/estudiantes?usuario_id=eq.%s&select=id", config.AppConfig.SupabaseURL, userID.String())
+	fmt.Printf("🔍 [ObtenerOwnerIDPorUserID] Verificando estudiante en: %s\n", estudianteURL)
+
+	respEstudiante, err := r.client.DoRequest("GET", estudianteURL, nil, r.client.GetAuthHeaders())
+
 	if err == nil {
-		fmt.Println("✅ [Repo] Usuario es ESTUDIANTE, ID:", estudianteID)
-		return estudianteID, "estudiante", nil
+		var estudiantes []struct {
+			ID uuid.UUID `json:"id"`
+		}
+		if json.Unmarshal(respEstudiante, &estudiantes) == nil && len(estudiantes) > 0 {
+			fmt.Printf("✅ [ObtenerOwnerIDPorUserID] Usuario ES ESTUDIANTE, retornando userID: %s\n", userID)
+			return userID, "estudiante", nil // ✅ RETORNA userID, NO estudiantes[0].ID
+		}
 	}
 
-	// Si no es estudiante, intentar con docente
-	docenteID, err := r.ObtenerDocenteIDPorUserID(ctx, userID)
+	// Verificar si es docente
+	docenteURL := fmt.Sprintf("%s/rest/v1/docentes?usuario_id=eq.%s&select=id", config.AppConfig.SupabaseURL, userID.String())
+	fmt.Printf("🔍 [ObtenerOwnerIDPorUserID] Verificando docente en: %s\n", docenteURL)
+
+	respDocente, err := r.client.DoRequest("GET", docenteURL, nil, r.client.GetAuthHeaders())
+
 	if err == nil {
-		fmt.Println("✅ [Repo] Usuario es DOCENTE, ID:", docenteID)
-		return docenteID, "docente", nil
+		var docentes []struct {
+			ID uuid.UUID `json:"id"`
+		}
+		if json.Unmarshal(respDocente, &docentes) == nil && len(docentes) > 0 {
+			fmt.Printf("✅ [ObtenerOwnerIDPorUserID] Usuario ES DOCENTE, retornando userID: %s\n", userID)
+			return userID, "docente", nil // ✅ RETORNA userID, NO docentes[0].ID
+		}
 	}
 
+	fmt.Printf("❌ [ObtenerOwnerIDPorUserID] Usuario no es ni estudiante ni docente\n")
 	return uuid.Nil, "", fmt.Errorf("usuario no es ni estudiante ni docente")
-}
-
-// ObtenerEstudianteIDPorUserID obtiene el estudiante_id desde user_id
-func (r *PortafolioRepository) ObtenerEstudianteIDPorUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	url := fmt.Sprintf("%s/rest/v1/estudiantes?usuario_id=eq.%s&select=id", config.AppConfig.SupabaseURL, userID.String())
-
-	resp, err := r.client.DoRequest("GET", url, nil, r.client.GetAuthHeaders())
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	var estudiantes []struct {
-		ID uuid.UUID `json:"id"`
-	}
-
-	if err := json.Unmarshal(resp, &estudiantes); err != nil {
-		return uuid.Nil, err
-	}
-
-	if len(estudiantes) == 0 {
-		return uuid.Nil, fmt.Errorf("usuario no es estudiante")
-	}
-
-	return estudiantes[0].ID, nil
-}
-
-// ✅ NUEVO: ObtenerDocenteIDPorUserID obtiene el docente_id desde user_id
-func (r *PortafolioRepository) ObtenerDocenteIDPorUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	url := fmt.Sprintf("%s/rest/v1/docentes?usuario_id=eq.%s&select=id", config.AppConfig.SupabaseURL, userID.String())
-
-	resp, err := r.client.DoRequest("GET", url, nil, r.client.GetAuthHeaders())
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	var docentes []struct {
-		ID uuid.UUID `json:"id"`
-	}
-
-	if err := json.Unmarshal(resp, &docentes); err != nil {
-		return uuid.Nil, err
-	}
-
-	if len(docentes) == 0 {
-		return uuid.Nil, fmt.Errorf("usuario no es docente")
-	}
-
-	return docentes[0].ID, nil
 }
 
 // Crear receta (funciona para estudiantes y docentes)
 func (r *PortafolioRepository) Crear(ctx context.Context, ownerID uuid.UUID, req models.CrearPortafolioRequest) (*models.Portafolio, error) {
-	fmt.Println("🔍 [Repo] Iniciando creación de portafolio...")
-	fmt.Printf("🔍 [Repo] Owner ID: %s\n", ownerID.String())
+	fmt.Println("🔍 [Repo.Crear] Iniciando creación de portafolio...")
+	fmt.Printf("🔍 [Repo.Crear] ownerID recibido: %s\n", ownerID.String())
 
 	// Parsear categoria_id
 	categoriaID, err := uuid.Parse(req.CategoriaID)
 	if err != nil {
-		fmt.Printf("❌ [Repo] Error parseando categoria_id: %v\n", err)
+		fmt.Printf("❌ [Repo.Crear] Error parseando categoria_id: %v\n", err)
 		return nil, fmt.Errorf("categoria_id inválido: %w", err)
 	}
 
-	// ✅ Crear map (estudiante_id se usa para ambos roles por compatibilidad con BD)
+	// ✅ CAMBIO: usuario_id en vez de estudiante_id
 	portafolio := map[string]interface{}{
 		"id":             uuid.New().String(),
-		"estudiante_id":  ownerID.String(), // ✅ Funciona para estudiantes y docentes
+		"usuario_id":     ownerID.String(), // ✅ Usa ownerID que es el usuario_id
 		"titulo":         req.Titulo,
 		"ingredientes":   req.Ingredientes,
 		"preparacion":    req.Preparacion,
@@ -128,160 +101,137 @@ func (r *PortafolioRepository) Crear(ctx context.Context, ownerID uuid.UUID, req
 
 	// ✅ DEBUG: Ver qué se está enviando
 	jsonData, _ := json.MarshalIndent(portafolio, "", "  ")
-	fmt.Printf("📤 [Repo] JSON a enviar:\n%s\n", string(jsonData))
+	fmt.Printf("📤 [Repo.Crear] JSON a enviar:\n%s\n", string(jsonData))
 
 	// Hacer el POST
 	url := fmt.Sprintf("%s/rest/v1/portafolio", config.AppConfig.SupabaseURL)
 	body, err := r.client.DoRequest("POST", url, portafolio, r.client.GetAuthHeadersWithPrefer())
 	if err != nil {
-		fmt.Printf("❌ [Repo] Error en POST a Supabase: %v\n", err)
+		fmt.Printf("❌ [Repo.Crear] Error en POST a Supabase: %v\n", err)
 		return nil, fmt.Errorf("error creando portafolio en Supabase: %w", err)
 	}
 
 	// Parsear respuesta
 	var result []models.Portafolio
 	if err := json.Unmarshal(body, &result); err != nil {
-		fmt.Printf("❌ [Repo] Error parseando resultado: %v\n", err)
-		fmt.Printf("📥 [Repo] Body recibido: %s\n", string(body))
+		fmt.Printf("❌ [Repo.Crear] Error parseando resultado: %v\n", err)
+		fmt.Printf("📥 [Repo.Crear] Body recibido: %s\n", string(body))
 		return nil, fmt.Errorf("error parseando respuesta: %w", err)
 	}
 
 	if len(result) == 0 {
-		fmt.Println("❌ [Repo] No se retornó ningún portafolio")
+		fmt.Println("❌ [Repo.Crear] No se retornó ningún portafolio")
 		return nil, fmt.Errorf("no se retornó ningún registro después del insert")
 	}
 
-	fmt.Printf("✅ [Repo] Portafolio creado exitosamente: %s\n", result[0].ID)
+	fmt.Printf("✅ [Repo.Crear] Portafolio creado exitosamente: %s\n", result[0].ID)
 	return &result[0], nil
 }
 
 // ObtenerPorOwner obtiene recetas del owner (estudiante o docente)
 func (r *PortafolioRepository) ObtenerPorOwner(ctx context.Context, ownerID uuid.UUID) ([]models.Portafolio, error) {
-	url := fmt.Sprintf("%s/rest/v1/portafolio?estudiante_id=eq.%s&order=created_at.desc",
+	fmt.Printf("🔍 [ObtenerPorOwner] ownerID recibido: %s\n", ownerID)
+
+	url := fmt.Sprintf("%s/rest/v1/portafolio?usuario_id=eq.%s&order=created_at.desc",
 		config.AppConfig.SupabaseURL, ownerID.String())
+
+	fmt.Printf("🔍 [ObtenerPorOwner] URL: %s\n", url)
 
 	resp, err := r.client.DoRequest("GET", url, nil, r.client.GetAuthHeaders())
 	if err != nil {
+		fmt.Printf("❌ [ObtenerPorOwner] Error en request: %v\n", err)
 		return nil, err
 	}
+
+	fmt.Printf("📥 [ObtenerPorOwner] Response length: %d\n", len(resp))
 
 	var portafolios []models.Portafolio
 	if err := json.Unmarshal(resp, &portafolios); err != nil {
+		fmt.Printf("❌ [ObtenerPorOwner] Error parseando JSON: %v\n", err)
 		return nil, err
 	}
 
+	fmt.Printf("✅ [ObtenerPorOwner] %d portafolios encontrados\n", len(portafolios))
 	return portafolios, nil
 }
 
-// ✅ MANTENER: Por compatibilidad (ahora usa ObtenerPorOwner internamente)
+// ✅ MANTENER: Por compatibilidad
 func (r *PortafolioRepository) ObtenerPorEstudiante(ctx context.Context, estudianteID uuid.UUID) ([]models.Portafolio, error) {
 	return r.ObtenerPorOwner(ctx, estudianteID)
 }
 
 // ✅ MODIFICADO: ObtenerPublicas - Incluye recetas de estudiantes Y docentes
 func (r *PortafolioRepository) ObtenerPublicas(ctx context.Context) ([]models.PortafolioConEstudiante, error) {
-	// Query 1: Obtener todas las recetas públicas
-	urlPortafolios := fmt.Sprintf("%s/rest/v1/portafolio?visibilidad=eq.publica&order=created_at.desc",
+	// ✅ USAR JOIN DIRECTO CON USUARIOS
+	urlPortafolios := fmt.Sprintf("%s/rest/v1/portafolio?visibilidad=eq.publica&select=*,usuarios!portafolio_usuario_id_fkey(nombre_completo,avatar_url,codigo)&order=created_at.desc",
 		config.AppConfig.SupabaseURL)
+
+	fmt.Printf("🔍 [ObtenerPublicas] URL con JOIN: %s\n", urlPortafolios)
 
 	respPortafolios, err := r.client.DoRequest("GET", urlPortafolios, nil, r.client.GetAuthHeaders())
 	if err != nil {
 		return nil, err
 	}
 
-	var portafolios []models.Portafolio
-	if err := json.Unmarshal(respPortafolios, &portafolios); err != nil {
-		return nil, err
-	}
-
-	// Query 2: Obtener info de estudiantes
-	urlEstudiantes := fmt.Sprintf("%s/rest/v1/estudiantes?select=id,codigo_estudiante,usuarios(nombre_completo,avatar_url)",
-		config.AppConfig.SupabaseURL)
-	respEstudiantes, err := r.client.DoRequest("GET", urlEstudiantes, nil, r.client.GetAuthHeaders())
-	if err != nil {
-		return nil, err
-	}
-
-	var estudiantes []struct {
-		ID               string `json:"id"`
-		CodigoEstudiante string `json:"codigo_estudiante"`
-		Usuarios         *struct {
+	var portafoliosConUsuario []struct {
+		models.Portafolio
+		Usuarios *struct {
 			NombreCompleto string `json:"nombre_completo"`
 			AvatarURL      string `json:"avatar_url"`
+			Codigo         string `json:"codigo"`
 		} `json:"usuarios"`
 	}
-	json.Unmarshal(respEstudiantes, &estudiantes)
 
-	// Query 3: Obtener info de docentes
-	urlDocentes := fmt.Sprintf("%s/rest/v1/docentes?select=id,codigo_docente,usuarios(nombre_completo,avatar_url)",
-		config.AppConfig.SupabaseURL)
-	respDocentes, err := r.client.DoRequest("GET", urlDocentes, nil, r.client.GetAuthHeaders())
-	if err != nil {
+	if err := json.Unmarshal(respPortafolios, &portafoliosConUsuario); err != nil {
 		return nil, err
 	}
 
-	var docentes []struct {
-		ID            string `json:"id"`
-		CodigoDocente string `json:"codigo_docente"`
-		Usuarios      *struct {
-			NombreCompleto string `json:"nombre_completo"`
-			AvatarURL      string `json:"avatar_url"`
-		} `json:"usuarios"`
-	}
-	json.Unmarshal(respDocentes, &docentes)
-
-	// Combinar datos: buscar info del owner en estudiantes o docentes
-	result := make([]models.PortafolioConEstudiante, 0)
-	for _, p := range portafolios {
+	result := make([]models.PortafolioConEstudiante, 0, len(portafoliosConUsuario))
+	for _, p := range portafoliosConUsuario {
 		item := models.PortafolioConEstudiante{
-			Portafolio: p,
+			Portafolio: p.Portafolio,
 		}
 
-		ownerID := p.EstudianteID.String()
-
-		// Buscar primero en estudiantes
-		found := false
-		for _, est := range estudiantes {
-			if est.ID == ownerID && est.Usuarios != nil {
-				item.NombreEstudiante = est.Usuarios.NombreCompleto
-				item.CodigoEstudiante = est.CodigoEstudiante
-				item.AvatarEstudiante = &est.Usuarios.AvatarURL
-				found = true
-				break
-			}
-		}
-
-		// Si no se encontró en estudiantes, buscar en docentes
-		if !found {
-			for _, doc := range docentes {
-				if doc.ID == ownerID && doc.Usuarios != nil {
-					item.NombreEstudiante = doc.Usuarios.NombreCompleto
-					item.CodigoEstudiante = doc.CodigoDocente
-					item.AvatarEstudiante = &doc.Usuarios.AvatarURL
-					break
-				}
-			}
+		if p.Usuarios != nil {
+			item.NombreEstudiante = p.Usuarios.NombreCompleto
+			item.CodigoEstudiante = p.Usuarios.Codigo
+			item.AvatarEstudiante = &p.Usuarios.AvatarURL
 		}
 
 		result = append(result, item)
 	}
 
+	fmt.Printf("✅ [ObtenerPublicas] %d recetas públicas con datos de usuario\n", len(result))
 	return result, nil
 }
 
-// ObtenerPorID obtiene una receta por ID (funciona para estudiantes y docentes)
+// ✅ CORREGIDO COMPLETO: ObtenerPorID con JOIN directo
 func (r *PortafolioRepository) ObtenerPorID(ctx context.Context, id uuid.UUID) (*models.PortafolioConEstudiante, error) {
-	// Query 1: Obtener el portafolio
-	urlPortafolio := fmt.Sprintf("%s/rest/v1/portafolio?id=eq.%s",
+	// ✅ USAR JOIN DIRECTO EN LA QUERY
+	urlPortafolio := fmt.Sprintf("%s/rest/v1/portafolio?id=eq.%s&select=*,usuarios!portafolio_usuario_id_fkey(nombre_completo,avatar_url,codigo)",
 		config.AppConfig.SupabaseURL, id.String())
+
+	fmt.Printf("🔍 [ObtenerPorID] URL con JOIN: %s\n", urlPortafolio)
 
 	respPortafolio, err := r.client.DoRequest("GET", urlPortafolio, nil, r.client.GetAuthHeaders())
 	if err != nil {
+		fmt.Printf("❌ [ObtenerPorID] Error en request: %v\n", err)
 		return nil, err
 	}
 
-	var portafolios []models.Portafolio
+	fmt.Printf("📥 [ObtenerPorID] Response: %s\n", string(respPortafolio))
+
+	var portafolios []struct {
+		models.Portafolio
+		Usuarios *struct {
+			NombreCompleto string `json:"nombre_completo"`
+			AvatarURL      string `json:"avatar_url"`
+			Codigo         string `json:"codigo"`
+		} `json:"usuarios"`
+	}
+
 	if err := json.Unmarshal(respPortafolio, &portafolios); err != nil {
+		fmt.Printf("❌ [ObtenerPorID] Error parseando: %v\n", err)
 		return nil, err
 	}
 
@@ -290,66 +240,27 @@ func (r *PortafolioRepository) ObtenerPorID(ctx context.Context, id uuid.UUID) (
 	}
 
 	p := portafolios[0]
-	ownerID := p.EstudianteID.String()
 
-	// Query 2: Obtener info del owner (estudiante o docente)
 	result := &models.PortafolioConEstudiante{
-		Portafolio: p,
+		Portafolio: p.Portafolio,
 	}
 
-	// Buscar primero en estudiantes
-	urlEstudiante := fmt.Sprintf("%s/rest/v1/estudiantes?id=eq.%s&select=id,codigo_estudiante,usuarios(nombre_completo,avatar_url)",
-		config.AppConfig.SupabaseURL, ownerID)
-	respEstudiante, err := r.client.DoRequest("GET", urlEstudiante, nil, r.client.GetAuthHeaders())
-
-	if err == nil {
-		var estudiantes []struct {
-			ID               string `json:"id"`
-			CodigoEstudiante string `json:"codigo_estudiante"`
-			Usuarios         *struct {
-				NombreCompleto string `json:"nombre_completo"`
-				AvatarURL      string `json:"avatar_url"`
-			} `json:"usuarios"`
-		}
-
-		if json.Unmarshal(respEstudiante, &estudiantes) == nil && len(estudiantes) > 0 && estudiantes[0].Usuarios != nil {
-			result.NombreEstudiante = estudiantes[0].Usuarios.NombreCompleto
-			result.CodigoEstudiante = estudiantes[0].CodigoEstudiante
-			result.AvatarEstudiante = &estudiantes[0].Usuarios.AvatarURL
-			return result, nil
-		}
+	// ✅ USAR DATOS DEL JOIN DIRECTAMENTE
+	if p.Usuarios != nil {
+		result.NombreEstudiante = p.Usuarios.NombreCompleto
+		result.CodigoEstudiante = p.Usuarios.Codigo
+		result.AvatarEstudiante = &p.Usuarios.AvatarURL
+		fmt.Printf("✅ [ObtenerPorID] Datos de usuario desde JOIN: %s (%s)\n", result.NombreEstudiante, result.CodigoEstudiante)
+	} else {
+		fmt.Printf("⚠️ [ObtenerPorID] No se encontraron datos de usuario en el JOIN\n")
 	}
 
-	// Si no se encontró en estudiantes, buscar en docentes
-	urlDocente := fmt.Sprintf("%s/rest/v1/docentes?id=eq.%s&select=id,codigo_docente,usuarios(nombre_completo,avatar_url)",
-		config.AppConfig.SupabaseURL, ownerID)
-	respDocente, err := r.client.DoRequest("GET", urlDocente, nil, r.client.GetAuthHeaders())
-
-	if err == nil {
-		var docentes []struct {
-			ID            string `json:"id"`
-			CodigoDocente string `json:"codigo_docente"`
-			Usuarios      *struct {
-				NombreCompleto string `json:"nombre_completo"`
-				AvatarURL      string `json:"avatar_url"`
-			} `json:"usuarios"`
-		}
-
-		if json.Unmarshal(respDocente, &docentes) == nil && len(docentes) > 0 && docentes[0].Usuarios != nil {
-			result.NombreEstudiante = docentes[0].Usuarios.NombreCompleto
-			result.CodigoEstudiante = docentes[0].CodigoDocente
-			result.AvatarEstudiante = &docentes[0].Usuarios.AvatarURL
-			return result, nil
-		}
-	}
-
-	// Si no se encuentra ni en estudiantes ni en docentes, retornar sin info del owner
 	return result, nil
 }
 
-// Eliminar receta (funciona para estudiantes y docentes)
+// Eliminar receta
 func (r *PortafolioRepository) Eliminar(ctx context.Context, id uuid.UUID, ownerID uuid.UUID) error {
-	url := fmt.Sprintf("%s/rest/v1/portafolio?id=eq.%s&estudiante_id=eq.%s",
+	url := fmt.Sprintf("%s/rest/v1/portafolio?id=eq.%s&usuario_id=eq.%s",
 		config.AppConfig.SupabaseURL, id.String(), ownerID.String())
 
 	_, err := r.client.DoRequest("DELETE", url, nil, r.client.GetAuthHeaders())
@@ -429,11 +340,8 @@ func (r *PortafolioRepository) ObtenerComentarios(ctx context.Context, portafoli
 	return result, nil
 }
 
-// ✨ AGREGAR ESTE MÉTODO en portafolio_repository.go
-
 // Actualizar receta
 func (r *PortafolioRepository) Actualizar(ctx context.Context, id uuid.UUID, ownerID uuid.UUID, req models.ActualizarPortafolioRequest) (*models.Portafolio, error) {
-	// Construir el mapa de actualización solo con campos no nulos
 	updateData := make(map[string]interface{})
 
 	if req.Titulo != nil {
@@ -465,11 +373,9 @@ func (r *PortafolioRepository) Actualizar(ctx context.Context, id uuid.UUID, own
 		updateData["visibilidad"] = *req.Visibilidad
 	}
 
-	// Siempre actualizar updated_at
 	updateData["updated_at"] = "now()"
 
-	// Hacer el PATCH a Supabase
-	url := fmt.Sprintf("%s/rest/v1/portafolio?id=eq.%s&estudiante_id=eq.%s",
+	url := fmt.Sprintf("%s/rest/v1/portafolio?id=eq.%s&usuario_id=eq.%s",
 		config.AppConfig.SupabaseURL, id.String(), ownerID.String())
 
 	body, err := r.client.DoRequest("PATCH", url, updateData, r.client.GetAuthHeadersWithPrefer())
@@ -477,7 +383,6 @@ func (r *PortafolioRepository) Actualizar(ctx context.Context, id uuid.UUID, own
 		return nil, fmt.Errorf("error actualizando portafolio: %w", err)
 	}
 
-	// Parsear respuesta
 	var result []models.Portafolio
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("error parseando respuesta: %w", err)
