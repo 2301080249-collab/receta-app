@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -17,10 +18,20 @@ type FirebaseService struct {
 func NewFirebaseService() (*FirebaseService, error) {
 	ctx := context.Background()
 
-	// ✅ CORRECCIÓN: Path relativo al directorio raíz del proyecto
-	opt := option.WithCredentialsFile("./firebase-adminsdk.json")
+	var opt option.ClientOption
 
-	// ✅ Especificar el project_id explícitamente
+	// ✅ Intentar cargar desde variable de entorno (PRODUCCIÓN)
+	if credJSON := os.Getenv("FIREBASE_CREDENTIALS"); credJSON != "" {
+		opt = option.WithCredentialsJSON([]byte(credJSON))
+		log.Println("✅ Firebase: Usando credenciales desde variable de entorno")
+	} else if _, err := os.Stat("./firebase-adminsdk.json"); err == nil {
+		// Desarrollo: archivo local
+		opt = option.WithCredentialsFile("./firebase-adminsdk.json")
+		log.Println("✅ Firebase: Usando archivo local")
+	} else {
+		return nil, fmt.Errorf("no se encontraron credenciales de Firebase")
+	}
+
 	config := &firebase.Config{
 		ProjectID: "cenfotec-8c7b1",
 	}
@@ -30,7 +41,6 @@ func NewFirebaseService() (*FirebaseService, error) {
 		return nil, fmt.Errorf("error inicializando Firebase: %v", err)
 	}
 
-	// Obtener cliente de messaging
 	client, err := app.Messaging(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error obteniendo cliente de messaging: %v", err)
