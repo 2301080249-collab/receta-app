@@ -2,6 +2,15 @@ FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 
+# Declarar build arguments
+ARG BACKEND_URL
+ARG SUPABASE_URL
+ARG SUPABASE_KEY
+ARG SUPABASE_ANON_KEY
+ARG ENVIRONMENT
+ARG CONNECTION_TIMEOUT
+ARG GEMINI_API_KEY
+
 # Copiar archivos de configuración
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
@@ -9,7 +18,7 @@ RUN flutter pub get
 # Copiar todo el código
 COPY . .
 
-# ✅ CREAR .env desde variables de entorno de Render
+# ✅ CREAR .env desde build arguments
 RUN echo "BACKEND_URL=${BACKEND_URL}" > .env && \
     echo "SUPABASE_URL=${SUPABASE_URL}" >> .env && \
     echo "SUPABASE_KEY=${SUPABASE_KEY}" >> .env && \
