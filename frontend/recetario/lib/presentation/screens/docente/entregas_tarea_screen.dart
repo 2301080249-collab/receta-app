@@ -16,6 +16,7 @@ import '../../widgets/CursoSidebarWidget.dart';
 import '../../widgets/custom_app_header.dart';
 import 'calificar_entrega_screen.dart';
 import 'dart:typed_data';
+import '../../../core/constants/api_constants.dart';
 
 import 'package:file_saver/file_saver.dart';
 
@@ -65,12 +66,12 @@ class _EntregasTareaScreenState extends State<EntregasTareaScreen> {
   // ✅ Obtener URL base según la plataforma
   String _getBaseUrl() {
     if (kIsWeb) {
-      return 'http://localhost:8080';
+      return ApiConstants.baseUrl;
     } else {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2:8080';
+       return ApiConstants.baseUrl;
       } else {
-        return 'http://localhost:8080';
+        return ApiConstants.baseUrl;
       }
     }
   }
