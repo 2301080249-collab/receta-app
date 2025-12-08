@@ -9,16 +9,22 @@ RUN flutter pub get
 # Copiar todo el código
 COPY . .
 
-# Compilar para web (simple, sin opciones extras)
-RUN flutter build web --release
+# ✅ Las variables se pasan como argumentos desde Render
+ARG API_URL
+ARG SUPABASE_URL
+ARG SUPABASE_ANON_KEY
+
+# Compilar con variables inyectadas
+RUN flutter build web --release \
+    --dart-define=API_URL=${API_URL} \
+    --dart-define=SUPABASE_URL=${SUPABASE_URL} \
+    --dart-define=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 
 # Stage 2: Servir con nginx
 FROM nginx:alpine
 
-# Copiar archivos compilados
 COPY --from=build /app/build/web /usr/share/nginx/html
 
-# Configurar nginx para puerto 10000
 RUN echo 'server { \
     listen 10000; \
     location / { \
