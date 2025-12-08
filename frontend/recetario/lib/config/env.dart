@@ -3,7 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class Env {
   // Backend
   static String get backendUrl => 
-      dotenv.env['BACKEND_URL'] ?? 'https://nerveless-saporific-fermin.ngrok-free.dev';
+     dotenv.env['BACKEND_URL'] ?? 'https://receta-backend.onrender.com'; 
   
   // Supabase
   static String get supabaseUrl => 
