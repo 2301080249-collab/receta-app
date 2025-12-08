@@ -64,6 +64,8 @@ class GeminiNutritionService {
 
   GeminiNutritionService(this.apiKey) {
     print('🤖 [GEMINI] Servicio inicializado');
+    print('🔑 [GEMINI] API KEY length: ${apiKey.length}');
+    print('🔑 [GEMINI] API KEY primeros 10 chars: ${apiKey.length >= 10 ? apiKey.substring(0, 10) : apiKey}...');
     if (apiKey.isEmpty) {
       print('❌ [GEMINI] API KEY VACÍA');
     } else {
@@ -89,7 +91,7 @@ class GeminiNutritionService {
     }
 
     if (apiKey.isEmpty || apiKey.length < 20) {
-      print('❌ API KEY inválida - Usando fallback');
+      print('❌ API KEY inválida (length: ${apiKey.length}) - Usando fallback');
       print('🔍 [GEMINI] ════════════════════════════════════════\n');
       return AnalisisNutricional.fallback(categoria);
     }
@@ -137,16 +139,17 @@ class GeminiNutritionService {
         ).timeout(
           const Duration(seconds: 20),
           onTimeout: () {
-            print('⏰ TIMEOUT');
+            print('⏰ TIMEOUT después de 20 segundos');
             throw Exception('Timeout');
           },
         );
 
-        print('📥 Status: ${response.statusCode}');
+        print('📥 Status Code: ${response.statusCode}');
 
         if (response.statusCode == 429) {
+          print('⚠️ RATE LIMIT (429) alcanzado');
           if (intento < maxIntentos) {
-            print('⚠️ Rate limit alcanzado - Esperando 35 segundos antes de reintentar...');
+            print('⏳ Esperando 35 segundos antes de reintentar...');
             await Future.delayed(const Duration(seconds: 35));
             continue;
           } else {
@@ -157,13 +160,32 @@ class GeminiNutritionService {
           }
         }
 
+        if (response.statusCode == 400) {
+          print('❌ ERROR 400 - Bad Request');
+          print('📦 Response body: ${response.body}');
+          print('🔍 [GEMINI] ════════════════════════════════════════\n');
+          return AnalisisNutricional.fallback(categoria);
+        }
+
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          print('❌ ERROR ${response.statusCode} - API KEY INVÁLIDA O SIN PERMISOS');
+          print('📦 Response body: ${response.body}');
+          print('🔍 [GEMINI] ════════════════════════════════════════\n');
+          return AnalisisNutricional.fallback(categoria);
+        }
+
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
+          
+          // 🆕 LOG COMPLETO DE LA RESPUESTA
+          print('📦 ═══ RESPUESTA COMPLETA DE GEMINI ═══');
+          print(json.encode(data));
+          print('📦 ═════════════════════════════════════\n');
           
           if (!data.containsKey('candidates') || 
               data['candidates'] == null || 
               data['candidates'].isEmpty) {
-            print('⚠️ Sin candidates - Usando fallback');
+            print('⚠️ Sin candidates en la respuesta - Usando fallback');
             print('🔍 [GEMINI] ════════════════════════════════════════\n');
             return AnalisisNutricional.fallback(categoria);
           }
@@ -177,7 +199,10 @@ class GeminiNutritionService {
           if (candidate.containsKey('finishReason') && 
               (candidate['finishReason'] == 'SAFETY' || 
                candidate['finishReason'] == 'RECITATION')) {
-            print('🚫 Bloqueado por: ${candidate['finishReason']}');
+            print('🚫 Contenido bloqueado por: ${candidate['finishReason']}');
+            if (candidate.containsKey('safetyRatings')) {
+              print('🛡️ Safety Ratings: ${candidate['safetyRatings']}');
+            }
             print('🔍 [GEMINI] ════════════════════════════════════════\n');
             return AnalisisNutricional.fallback(categoria);
           }
@@ -195,39 +220,46 @@ class GeminiNutritionService {
             
             if (content.containsKey('parts') && content['parts'] != null && content['parts'].isNotEmpty) {
               text = content['parts'][0]['text'];
+              print('✅ Text extraído de content.parts[0].text');
             } else if (content.containsKey('text')) {
               text = content['text'];
+              print('✅ Text extraído de content.text');
             } else {
               print('⚠️ No se encontró texto en content');
+              print('📦 Content structure: ${content.keys}');
               print('🔍 [GEMINI] ════════════════════════════════════════\n');
               return AnalisisNutricional.fallback(categoria);
             }
             
             if (text == null || text.toString().trim().isEmpty) {
-              print('⚠️ Text vacío - Usando fallback');
+              print('⚠️ Text es null o vacío - Usando fallback');
               print('🔍 [GEMINI] ════════════════════════════════════════\n');
               return AnalisisNutricional.fallback(categoria);
             }
             
-            print('✅ Respuesta recibida (${text.toString().length} chars)');
+            print('✅ Respuesta recibida exitosamente');
+            print('📏 Longitud: ${text.toString().length} caracteres');
+            print('📄 Primeros 100 chars: ${text.toString().substring(0, text.toString().length > 100 ? 100 : text.toString().length)}...');
             
             final analisis = _parsearRespuesta(text.trim(), categoria);
             _cache[recetaId] = analisis;
             
-            print('💾 Guardado en caché');
+            print('💾 Análisis guardado en caché');
+            print('🎯 Tipo detectado: ${analisis.tipo}');
             print('🔍 [GEMINI] ════════════════════════════════════════\n');
             
             return analisis;
           } catch (e) {
-            print('⚠️ Error procesando content: $e');
+            print('❌ Error procesando content: $e');
             print('🔍 [GEMINI] ════════════════════════════════════════\n');
             return AnalisisNutricional.fallback(categoria);
           }
         } else {
-          print('❌ Error: ${response.statusCode}');
+          print('❌ Status Code inesperado: ${response.statusCode}');
+          print('📦 Response body: ${response.body}');
           
           if (intento < maxIntentos) {
-            print('🔄 Reintentando...');
+            print('🔄 Reintentando en 2 segundos...');
             await Future.delayed(const Duration(seconds: 2));
             continue;
           }
@@ -235,11 +267,13 @@ class GeminiNutritionService {
           print('🔍 [GEMINI] ════════════════════════════════════════\n');
           return AnalisisNutricional.fallback(categoria);
         }
-      } catch (e) {
-        print('❌ Excepción (intento $intento/$maxIntentos): $e');
+      } catch (e, stackTrace) {
+        print('❌ Excepción capturada (intento $intento/$maxIntentos)');
+        print('💥 Error: $e');
+        print('📚 Stack trace: $stackTrace');
         
         if (intento < maxIntentos) {
-          print('🔄 Reintentando después de error...');
+          print('🔄 Reintentando después de error en 2 segundos...');
           await Future.delayed(const Duration(seconds: 2));
           continue;
         }
@@ -249,6 +283,7 @@ class GeminiNutritionService {
       }
     }
 
+    print('❌ Todos los intentos fallaron - Retornando fallback');
     return AnalisisNutricional.fallback(categoria);
   }
 
