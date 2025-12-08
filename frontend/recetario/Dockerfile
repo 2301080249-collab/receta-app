@@ -2,22 +2,35 @@ FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 
+# Copiar archivos de configuración
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 
+# Copiar todo el código
 COPY . .
 
-# ✅ VALORES DIRECTOS (sin variables)
-RUN flutter build web --release \
-    --dart-define=API_URL=https://receta-backend.onrender.com \
-    --dart-define=SUPABASE_URL=https://mqwaijsnybindsxvgjss.supabase.co \
-    --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xd2FpanNueWJpbmRzeHZnanNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxNzQyMDksImV4cCI6MjA3NDc1MDIwOX0.sR_W-Nc1-qoisLUBJWR16PpZ8uRj693CgtBK1jVg1N8 \
-    --dart-define=GEMINI_API_KEY=AIzaSyBiKWJ9fvVSo43Pl57eNWXVPHMTh8Vu87Q
+# ✅ CREAR .env desde variables de entorno de Render
+RUN echo "BACKEND_URL=${BACKEND_URL}" > .env && \
+    echo "SUPABASE_URL=${SUPABASE_URL}" >> .env && \
+    echo "SUPABASE_KEY=${SUPABASE_KEY}" >> .env && \
+    echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env && \
+    echo "ENVIRONMENT=${ENVIRONMENT}" >> .env && \
+    echo "CONNECTION_TIMEOUT=${CONNECTION_TIMEOUT}" >> .env && \
+    echo "GEMINI_API_KEY=${GEMINI_API_KEY}" >> .env
 
+# Verificar que se creó correctamente
+RUN cat .env
+
+# Compilar para web
+RUN flutter build web --release
+
+# Stage 2: Servir con nginx
 FROM nginx:alpine
 
+# Copiar archivos compilados
 COPY --from=build /app/build/web /usr/share/nginx/html
 
+# Configurar nginx para puerto 10000
 RUN echo 'server { \
     listen 10000; \
     location / { \
