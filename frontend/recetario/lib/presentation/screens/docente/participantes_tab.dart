@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform, File;
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:file_saver/file_saver.dart';
+
 import '../../../data/models/curso.dart';
 import '../../../data/models/matricula.dart';
 import '../../../data/services/matricula_service.dart';
 import '../../../core/utils/token_manager.dart';
-
-import 'dart:typed_data';
-import 'package:file_saver/file_saver.dart';
+import '../../../core/constants/api_constants.dart'; // ✅ IMPORTAR
 
 class ParticipantesTab extends StatefulWidget {
   final Curso curso;
@@ -36,36 +33,6 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
   void initState() {
     super.initState();
     _cargarDatos();
-  }
-
-  // ✅ Obtener URL base según la plataforma
-  String _getBaseUrl() {
-    // ⚠️ CAMBIA ESTAS URLs según tu configuración
-    if (kIsWeb) {
-      // Para desarrollo web local:
-      return 'http://localhost:8080';
-      
-      // Para producción web, descomenta y usa:
-      // return 'https://api.tuapp.com';
-    } else {
-      // Para desarrollo móvil:
-      if (Platform.isAndroid) {
-        // Emulador Android apunta a localhost de la PC:
-        return 'http://10.0.2.2:8080';
-        
-        // Para dispositivo físico Android, usa la IP de tu PC:
-        // return 'http://192.168.1.100:8080';
-      } else {
-        // iOS Simulator:
-        return 'http://localhost:8080';
-        
-        // Para dispositivo iOS físico:
-        // return 'http://192.168.1.100:8080';
-      }
-      
-      // Para producción móvil, descomenta y usa:
-      // return 'https://api.tuapp.com';
-    }
   }
 
   Future<void> _cargarDatos() async {
@@ -131,7 +98,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
     });
   }
 
-  // ✅ FUNCIÓN PRINCIPAL DE EXPORTACIÓN (Cross-platform)
+  // ✅ FUNCIÓN CORREGIDA - USA ApiConstants.baseUrl
   Future<void> _exportarAExcel() async {
     setState(() => _isExporting = true);
 
@@ -139,10 +106,11 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
       final token = await TokenManager.getToken();
       if (token == null) throw Exception('No hay token');
 
-      final baseUrl = _getBaseUrl();
-      final url = '$baseUrl/api/admin/cursos/${widget.curso.id}/participantes/export';
+      // ✅ CORRECCIÓN: Usar ApiConstants en lugar de localhost
+      final url = '${ApiConstants.baseUrl}${ApiConstants.exportarParticipantes(widget.curso.id)}';
       
-      // Hacer petición HTTP con headers de autenticación
+      print('🔍 DEBUG - URL de exportación: $url'); // Para verificar
+      
       final response = await http.get(
         Uri.parse(url),
         headers: {
@@ -154,7 +122,8 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
       if (response.statusCode == 200) {
         final fileName = 'Participantes_${widget.curso.nombre}.xlsx';
         
-       await _descargarArchivo(response.bodyBytes, fileName);
+        await _descargarArchivo(response.bodyBytes, fileName);
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -168,6 +137,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
         throw Exception('Error del servidor: ${response.statusCode}');
       }
     } catch (e) {
+      print('❌ ERROR en exportación: $e'); // Para debug
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -182,19 +152,18 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
     }
   }
 
-
- Future<void> _descargarArchivo(List<int> bytes, String fileName) async {
-  try {
-    await FileSaver.instance.saveFile(
-      name: fileName.replaceAll('.xlsx', ''),
-      bytes: Uint8List.fromList(bytes),
-      ext: 'xlsx',
-      mimeType: MimeType.microsoftExcel,
-    );
-  } catch (e) {
-    throw Exception('Error al guardar archivo: $e');
+  Future<void> _descargarArchivo(List<int> bytes, String fileName) async {
+    try {
+      await FileSaver.instance.saveFile(
+        name: fileName.replaceAll('.xlsx', ''),
+        bytes: Uint8List.fromList(bytes),
+        ext: 'xlsx',
+        mimeType: MimeType.microsoftExcel,
+      );
+    } catch (e) {
+      throw Exception('Error al guardar archivo: $e');
+    }
   }
-}
 
   String _calcularUltimoAcceso(DateTime fecha) {
     final diferencia = DateTime.now().difference(fecha);
@@ -220,7 +189,6 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ RESPONSIVE: Detectar tamaño de pantalla
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 900;
@@ -259,7 +227,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
             
             SizedBox(height: isMobile ? 16 : 32),
 
-            // Buscador con filtro desplegable - RESPONSIVE
+            // Buscador con filtro desplegable
             Container(
               padding: EdgeInsets.all(isMobile ? 16 : 24),
               decoration: BoxDecoration(
@@ -274,226 +242,29 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                 ],
               ),
               child: isMobile
-                  // Versión móvil: Columna
                   ? Column(
                       children: [
-                        // Dropdown de filtros
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _filtroSeleccionado,
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
-                              isExpanded: true,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[800],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              items: ['Nombre', 'Código', 'Email', 'Último acceso']
-                                  .map((filtro) => DropdownMenuItem(
-                                        value: filtro,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              filtro == 'Nombre' 
-                                                  ? Icons.person_outline
-                                                  : filtro == 'Código'
-                                                      ? Icons.numbers
-                                                      : filtro == 'Email'
-                                                          ? Icons.email_outlined
-                                                          : Icons.access_time,
-                                              size: 18,
-                                              color: Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(filtro),
-                                          ],
-                                        ),
-                                      ))
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _filtroSeleccionado = value!;
-                                  _filtrarParticipantes(_searchQuery);
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                        
+                        _buildFiltroDropdown(),
                         const SizedBox(height: 12),
-                        
-                        // Campo de búsqueda
-                        TextField(
-                          onChanged: _filtrarParticipantes,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar...',
-                            prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                            filled: true,
-                            fillColor: Colors.grey[50],
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFF37474F), width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          ),
-                        ),
-
+                        _buildSearchField(),
                         const SizedBox(height: 12),
-
-                        // ✅ BOTÓN EXPORTAR (Móvil - ancho completo)
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _isExporting ? null : _exportarAExcel,
-                            icon: _isExporting
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  )
-                                : const Icon(Icons.file_download, size: 20),
-                            label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2E7D32),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
+                        _buildExportButton(true),
                       ],
                     )
-                  // Versión desktop/tablet: Fila
                   : Row(
                       children: [
-                        // Dropdown de filtros
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _filtroSeleccionado,
-                              icon: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[800],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              items: ['Nombre', 'Código', 'Email', 'Último acceso']
-                                  .map((filtro) => DropdownMenuItem(
-                                        value: filtro,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              filtro == 'Nombre' 
-                                                  ? Icons.person_outline
-                                                  : filtro == 'Código'
-                                                      ? Icons.numbers
-                                                      : filtro == 'Email'
-                                                          ? Icons.email_outlined
-                                                          : Icons.access_time,
-                                              size: 18,
-                                              color: Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(filtro),
-                                          ],
-                                        ),
-                                      ))
-                                  .toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _filtroSeleccionado = value!;
-                                  _filtrarParticipantes(_searchQuery);
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                        
+                        _buildFiltroDropdown(),
                         const SizedBox(width: 16),
-                        
-                        // Campo de búsqueda
-                        Expanded(
-                          child: TextField(
-                            onChanged: _filtrarParticipantes,
-                            decoration: InputDecoration(
-                              hintText: 'Buscar...',
-                              prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: Color(0xFF37474F), width: 2),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            ),
-                          ),
-                        ),
-
+                        Expanded(child: _buildSearchField()),
                         const SizedBox(width: 16),
-
-                        // ✅ BOTÓN EXPORTAR (Desktop/Tablet)
-                        ElevatedButton.icon(
-                          onPressed: _isExporting ? null : _exportarAExcel,
-                          icon: _isExporting
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : const Icon(Icons.file_download, size: 20),
-                          label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E7D32),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
+                        _buildExportButton(false),
                       ],
                     ),
             ),
 
             SizedBox(height: isMobile ? 16 : 24),
 
-            // Contador de participantes
+            // Contador
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               child: Text(
@@ -508,7 +279,7 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
 
             const SizedBox(height: 16),
 
-            // Tabla/Lista de participantes - RESPONSIVE
+            // Lista/Tabla
             if (_isLoading)
               const Center(
                 child: Padding(
@@ -517,185 +288,251 @@ class _ParticipantesTabState extends State<ParticipantesTab> {
                 ),
               )
             else if (_participantesFiltrados.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(48),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No se encontraron participantes',
-                        style: TextStyle(
-                          fontSize: 16,
+              _buildEmptyState()
+            else if (isMobile)
+              ..._participantesFiltrados.map((m) => _buildMobileCard(m)).toList()
+            else
+              _buildDesktopTable(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFiltroDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _filtroSeleccionado,
+          icon: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
+          isExpanded: MediaQuery.of(context).size.width < 600,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[800],
+            fontWeight: FontWeight.w500,
+          ),
+          items: ['Nombre', 'Código', 'Email', 'Último acceso']
+              .map((filtro) => DropdownMenuItem(
+                    value: filtro,
+                    child: Row(
+                      children: [
+                        Icon(
+                          filtro == 'Nombre' 
+                              ? Icons.person_outline
+                              : filtro == 'Código'
+                                  ? Icons.numbers
+                                  : filtro == 'Email'
+                                      ? Icons.email_outlined
+                                      : Icons.access_time,
+                          size: 18,
                           color: Colors.grey[600],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else if (isMobile)
-              // Versión móvil: Lista de cards
-              ..._participantesFiltrados.map((matricula) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        matricula.nombreEstudiante ?? 'Sin nombre',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.numbers, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            matricula.codigoEstudiante ?? '-',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.email_outlined, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              matricula.emailEstudiante ?? '-',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[700],
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            _determinarRol(matricula),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            _calcularUltimoAcceso(matricula.createdAt),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }).toList()
-            else
-              // Versión desktop/tablet: Tabla
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
+                        const SizedBox(width: 8),
+                        Text(filtro),
+                      ],
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Table(
-                    columnWidths: const {
-                      0: FlexColumnWidth(2.5),
-                      1: FlexColumnWidth(1.5),
-                      2: FlexColumnWidth(2.5),
-                      3: FlexColumnWidth(1.2),
-                      4: FlexColumnWidth(1.5),
-                    },
-                    children: [
-                      // Header
-                      TableRow(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey[300]!),
-                          ),
-                        ),
-                        children: [
-                          _buildTableHeader('Nombre Completo'),
-                          _buildTableHeader('Código'),
-                          _buildTableHeader('Email'),
-                          _buildTableHeader('Rol'),
-                          _buildTableHeader('Último acceso'),
-                        ],
-                      ),
-                      // Rows
-                      ..._participantesFiltrados.map((matricula) {
-                        return TableRow(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(color: Colors.grey[200]!),
-                            ),
-                          ),
-                          children: [
-                            _buildTableCell(
-                              matricula.nombreEstudiante ?? 'Sin nombre',
-                              isName: true,
-                            ),
-                            _buildTableCell(matricula.codigoEstudiante ?? '-'),
-                            _buildTableCell(matricula.emailEstudiante ?? '-'),
-                            _buildTableCell(_determinarRol(matricula)),
-                            _buildTableCell(_calcularUltimoAcceso(matricula.createdAt)),
-                          ],
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                ),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _filtroSeleccionado = value!;
+              _filtrarParticipantes(_searchQuery);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      onChanged: _filtrarParticipantes,
+      decoration: InputDecoration(
+        hintText: 'Buscar...',
+        prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+        filled: true,
+        fillColor: Colors.grey[50],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF37474F), width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  Widget _buildExportButton(bool isFullWidth) {
+    final button = ElevatedButton.icon(
+      onPressed: _isExporting ? null : _exportarAExcel,
+      icon: _isExporting
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),
+            )
+          : const Icon(Icons.file_download, size: 20),
+      label: Text(_isExporting ? 'Exportando...' : 'Exportar a Excel'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF2E7D32),
+        foregroundColor: Colors.white,
+        padding: EdgeInsets.symmetric(
+          horizontal: isFullWidth ? 0 : 24,
+          vertical: isFullWidth ? 14 : 16,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+
+    return isFullWidth ? SizedBox(width: double.infinity, child: button) : button;
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(48),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No se encontraron participantes',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileCard(Matricula matricula) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            matricula.nombreEstudiante ?? 'Sin nombre',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow(Icons.numbers, matricula.codigoEstudiante ?? '-'),
+          _buildInfoRow(Icons.email_outlined, matricula.emailEstudiante ?? '-'),
+          _buildInfoRow(Icons.person_outline, _determinarRol(matricula)),
+          _buildInfoRow(Icons.access_time, _calcularUltimoAcceso(matricula.createdAt)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Table(
+          columnWidths: const {
+            0: FlexColumnWidth(2.5),
+            1: FlexColumnWidth(1.5),
+            2: FlexColumnWidth(2.5),
+            3: FlexColumnWidth(1.2),
+            4: FlexColumnWidth(1.5),
+          },
+          children: [
+            TableRow(
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+              ),
+              children: [
+                _buildTableHeader('Nombre Completo'),
+                _buildTableHeader('Código'),
+                _buildTableHeader('Email'),
+                _buildTableHeader('Rol'),
+                _buildTableHeader('Último acceso'),
+              ],
+            ),
+            ..._participantesFiltrados.map((m) {
+              return TableRow(
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+                ),
+                children: [
+                  _buildTableCell(m.nombreEstudiante ?? 'Sin nombre', isName: true),
+                  _buildTableCell(m.codigoEstudiante ?? '-'),
+                  _buildTableCell(m.emailEstudiante ?? '-'),
+                  _buildTableCell(_determinarRol(m)),
+                  _buildTableCell(_calcularUltimoAcceso(m.createdAt)),
+                ],
+              );
+            }).toList(),
           ],
         ),
       ),
